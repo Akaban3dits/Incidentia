@@ -1,0 +1,36 @@
+# Ignorar archivos de entorno en backend y frontend
+Back-project/.env
+Front-project/incidentia/.env
+
+# Ignorar node_modules en ambos proyectos
+Back-project/node_modules/
+Front-project/incidentia/node_modules/
+
+# Ignorar carpetas de build o dist en ambos proyectos
+Back-project/dist/
+Back-project/build/
+Front-project/incidentia/dist/
+Front-project/incidentia/build/
+
+# Ignorar logs
+**/*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Ignorar sistema operativo
+.DS_Store
+Thumbs.db
+
+# Ignorar configuración de editores
+.vscode/
+.idea/
+
+# Ignorar archivos temporales
+*.tmp
+*.temp
+
+# Ignorar uploads (si los tienes)
+Back-project/uploads/
+Front-project/incidentia/uploads/
