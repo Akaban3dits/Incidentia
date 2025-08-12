@@ -3,6 +3,12 @@ import { UserRole } from "../enums/userRole.enum";
 import { UserStatus } from "../enums/userStatus.enum";
 import User from "../models/user.model";
 import Department from "../models/department.model";
+import bcrypt from "bcrypt";
+import {
+  InternalServerError,
+  UnauthorizedError,
+  NotFoundError,
+} from "../utils/error";
 
 interface GoogleProfile {
   id: string;
@@ -11,24 +17,15 @@ interface GoogleProfile {
 }
 
 export class UserService {
-  // Busca un usuario por su ID, lanza error si no existe
   static async findById(id: string) {
     const user = await User.findByPk(id);
     if (!user) {
-      throw new Error(`Usuario con id ${id} no encontrado.`);
+      throw new NotFoundError(`Usuario con id ${id} no encontrado.`);
     }
     return user;
   }
 
-  // Busca o crea un usuario a partir del perfil Google
   static async findOrCreateGoogleUser(profile: GoogleProfile) {
-    // Obtiene departamento por defecto para asignar (id=1)
-    const department = await Department.findByPk(1);
-    if (!department) {
-      throw new Error("El departamento con id 1 no existe.");
-    }
-
-    // Busca usuario con provider google y provider_id igual al perfil
     let user = await User.findOne({
       where: {
         provider: "google",
@@ -36,7 +33,6 @@ export class UserService {
       },
     });
 
-    // Si no existe, crea un usuario nuevo con info del perfil
     if (!user) {
       user = await User.create({
         first_name: profile.name?.givenName || "",
@@ -53,12 +49,10 @@ export class UserService {
     return user;
   }
 
-  // Busca un usuario por su rol (ej: Administrador)
   static async findOneByRole(role: UserRole) {
     return User.findOne({ where: { role } });
   }
 
-  // Crea un usuario administrador a partir del perfil Google, solo si no existe otro admin
   static async createAdminFromGoogleProfile(profile: any) {
     const existing = await this.findOneByRole(UserRole.Administrador);
     if (existing) {
@@ -73,9 +67,64 @@ export class UserService {
       company: CompanyType.Externa,
       role: UserRole.Administrador,
       provider: "google",
-      provider_id: profile.id
+      provider_id: profile.id,
     });
 
     return adminUser;
+  }
+
+  static async completeUserProfile(userId: string, profileData: any) {
+    try {
+      const user = await UserService.findById(userId);
+      if (!user) {
+        throw new UnauthorizedError("Usuario no encontrado");
+      }
+
+      if (profileData.phone_number !== undefined) {
+        const existingphone = await User.findOne({
+          where: { phone_number: profileData.phone_number },
+        });
+        if (existingphone && existingphone.user_id !== userId) {
+          throw new UnauthorizedError("Número de teléfono ya en uso");
+        }
+        user.phone_number = profileData.phone_number;
+      }
+
+      if (profileData.password !== undefined) {
+        const saltRounds = 10;
+        const hashedPassword = await bcrypt.hash(
+          profileData.password,
+          saltRounds
+        );
+        user.password = hashedPassword;
+      }
+
+      if (profileData.department_id !== undefined) {
+        const department = await Department.findByPk(profileData.department_id);
+        if (!department) {
+          throw new NotFoundError("Departamento no encontrado");
+        }
+        user.department_id = profileData.department_id;
+      }
+
+      if (profileData.company !== undefined) {
+        user.company = profileData.company;
+      }
+
+      await user.save();
+
+      const { password, ...userWithoutPassword } = user.toJSON();
+      return userWithoutPassword;
+    } catch (error) {
+      if (
+        error instanceof UnauthorizedError ||
+        error instanceof NotFoundError
+      ) {
+        throw error;
+      }
+
+      console.error("Error inesperado en completeUserProfile:", error);
+      throw new InternalServerError("Error al completar el perfil");
+    }
   }
 }

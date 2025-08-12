@@ -1,4 +1,3 @@
-// Clase base para errores personalizados con código HTTP
 export class AppError extends Error {
   statusCode: number;
 
@@ -8,8 +7,6 @@ export class AppError extends Error {
     this.name = this.constructor.name; // Nombre de la clase para identificación
   }
 }
-
-// Errores específicos extendiendo AppError con códigos y mensajes por defecto
 
 export class BadRequestError extends AppError {
   constructor(message = "Solicitud incorrecta") {

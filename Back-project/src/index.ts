@@ -28,7 +28,7 @@ app.use("/api", routes);
 app.use(errorHandler);
 
 const PORT = Number(process.env.PORT) || 3000;
-const HOST = "0.0.0.0";
+const HOST = "localhost";
 
 const startServer = async () => {
   try {
