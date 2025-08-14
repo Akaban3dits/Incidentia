@@ -1,76 +1,91 @@
 import { body } from "express-validator";
 import { UserRole } from "../enums/userRole.enum";
 import { UserStatus } from "../enums/userStatus.enum";
-import { CompanyType } from "../enums/companyType.enum";
-
-const commonFields = {
-  first_name: body("first_name")
-    .isString().trim().isLength({ min: 1, max: 50 }),
-
-  last_name: body("last_name")
-    .isString().trim().isLength({ min: 1, max: 50 }),
-
-  email: body("email")
-    .isEmail().normalizeEmail(),
-
-  password: body("password")
-    .isLength({ min: 8, max: 20 }),
-
-  provider: body("provider")
-    .optional().isString().trim().isLength({ max: 50 }),
-
-  provider_id: body("provider_id")
-    .optional().isString().trim().isLength({ max: 255 }),
-
-  status: body("status")
-    .isIn(Object.values(UserStatus)),
-
-  company: body("company")
-    .isIn(Object.values(CompanyType)),
-
-  role: body("role")
-    .isIn(Object.values(UserRole)),
-
-  phone_number: body("phone_number")
-    .optional().isString().trim().isLength({ min: 10, max: 15 })
-};
+import { CompanyType } from "../enums/companyType.enum"; 
 
 export const userCreateValidator = [
-  commonFields.first_name,
-  commonFields.last_name,
-  commonFields.email,
+  body("first_name")
+    .optional()
+    .isString()
+    .trim()
+    .isLength({ min: 1, max: 50 })
+    .withMessage("El nombre debe tener entre 1 y 50 caracteres"),
+
+  body("last_name")
+    .optional()
+    .isString()
+    .trim()
+    .isLength({ min: 1, max: 50 })
+    .withMessage("El apellido debe tener entre 1 y 50 caracteres"),
+
+  body("email")
+    .optional()
+    .isEmail()
+    .normalizeEmail()
+    .withMessage("El correo electrónico debe ser válido"),
 
   body("password")
+    .optional()
     .if(body("provider").not().exists())
-    .isLength({ min: 8, max: 20 }),
+    .isLength({ min: 8, max: 20 })
+    .withMessage("La contraseña debe tener entre 8 y 20 caracteres"),
 
-  body("provider_id")
-    .if(body("provider").exists())
-    .isString().trim().isLength({ max: 255 }),
-
-  commonFields.status,
-  commonFields.company,
-  commonFields.role,
-  commonFields.phone_number
+  body("phone_number")
+    .optional()
+    .isString()
+    .trim()
+    .isLength({ min: 10, max: 15 })
+    .withMessage("El número de teléfono debe tener entre 10 y 15 caracteres"),
 ];
 
 export const userUpdateValidator = [
-  commonFields.first_name,
-  commonFields.last_name,
-  commonFields.email,
+  body("first_name")
+    .optional()
+    .isString()
+    .trim()
+    .isLength({ min: 1, max: 50 })
+    .withMessage("El nombre debe tener entre 1 y 50 caracteres"),
+
+  body("last_name")
+    .optional()
+    .isString()
+    .trim()
+    .isLength({ min: 1, max: 50 })
+    .withMessage("El apellido debe tener entre 1 y 50 caracteres"),
+
+  body("email")
+    .optional()
+    .isEmail()
+    .normalizeEmail()
+    .withMessage("El correo electrónico debe ser válido"),
 
   body("password")
+    .optional()
     .if(body("provider").not().exists())
-    .isLength({ min: 8, max: 20 }),
+    .isLength({ min: 8, max: 20 })
+    .withMessage("La contraseña debe tener entre 8 y 20 caracteres"),
 
-  body("provider_id")
-    .if(body("provider").exists())
-    .isString().trim().isLength({ max: 255 }),
+  body("status")
+    .optional()
+    .isIn(Object.values(UserStatus))
+    .withMessage("El estado de usuario no es válido"),
 
-  commonFields.status,
-  commonFields.company,
-  commonFields.role,
-  commonFields.phone_number
+  body("company")
+    .optional()
+    .isIn(Object.values(CompanyType))
+    .withMessage("El tipo de empresa no es válido"),
+
+  body("role")
+    .optional()
+    .isIn(Object.values(UserRole))
+    .withMessage("El rol de usuario no es válido"),
+
+  body("phone_number")
+    .optional()
+    .isString()
+    .trim()
+    .isLength({ min: 10, max: 15 })
+    .withMessage("El número de teléfono debe tener entre 10 y 15 caracteres"),
 ];
 
 export const completeUserProfileValidator = [

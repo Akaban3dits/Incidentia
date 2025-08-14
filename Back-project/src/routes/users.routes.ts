@@ -5,11 +5,14 @@ import { UserController } from "../controllers/user.controller";
 
 const router = Router();
 
+
 router.patch(
   "/complete-profile/:id",
   completeUserProfileValidator,
   validationResultMiddleware,
   UserController.completeProfile
 );
+
+
 
 export default router;

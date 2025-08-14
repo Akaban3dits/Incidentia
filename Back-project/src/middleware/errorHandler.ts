@@ -1,21 +1,47 @@
 import { Request, Response, NextFunction } from "express";
+import fs from "fs";
+import path from "path";
 import { AppError } from "../utils/error";
 
-// Middleware para capturar y responder a errores en la aplicación
+/**
+ * Middleware global para manejar errores.
+ * - Guarda los errores en un archivo dentro de la carpeta `logs/`.
+ * - Registra la fecha, método, ruta, mensaje y stack del error.
+ */
 const errorHandler = (
   err: Error,
   req: Request,
   res: Response,
   next: NextFunction
 ) => {
-  console.error(err); // Loguea el error en consola para depuración
+  // Directorio donde se guardarán los logs
+  const logsDir = path.join(__dirname, "..", "logs");
 
-  // Si es un error personalizado (AppError), responde con su código y mensaje
+  // Crea la carpeta si no existe
+  if (!fs.existsSync(logsDir)) {
+    fs.mkdirSync(logsDir, { recursive: true });
+  }
+
+  // Nombre del archivo de log por día (ej: 2025-08-13.log)
+  const logFile = path.join(logsDir, `${new Date().toISOString().slice(0, 10)}.log`);
+
+  // Texto del log
+  const logMessage = `[${new Date().toISOString()}] ${req.method} ${
+    req.originalUrl
+  }\nMensaje: ${err.message}\nStack: ${err.stack || "No stack"}\n\n`;
+
+  // Guarda el log (append para no sobreescribir)
+  fs.appendFileSync(logFile, logMessage, "utf-8");
+
+  // También loguea en consola para debug rápido
+  console.error(err);
+
+  // Si es un error controlado
   if (err instanceof AppError) {
     return res.status(err.statusCode).json({ error: err.message });
   }
 
-  // Para errores no controlados, responde con error 500 genérico
+  // Si es un error inesperado
   return res.status(500).json({ error: "Error interno del servidor" });
 };
 

@@ -1,39 +1,45 @@
-import twilio from 'twilio';
+import admin from "../config/firebase";
 
-const accountSid = process.env.TWILIO_SID!;            // SID de Twilio desde env
-const authToken = process.env.TWILIO_AUTH_TOKEN!;      // Token de Twilio desde env
-const client = twilio(accountSid, authToken);
-
-// Objeto en memoria para guardar códigos y expiración por teléfono
-const verificationCodes: Record<string, { code: string; expires: number }> = {};
-
-// Envía un código de verificación SMS al número dado
-export async function sendVerificationCode(phone: string) {
-  // Genera un código numérico aleatorio de 6 dígitos
-  const code = Math.floor(100000 + Math.random() * 900000).toString();
-  // Guarda código y tiempo de expiración (5 minutos) en memoria
-  verificationCodes[phone] = { code, expires: Date.now() + 5 * 60 * 1000 };
-
-  // Envía el SMS usando Twilio
-  await client.messages.create({
-    body: `Tu código de verificación es: ${code}`,
-    from: process.env.TWILIO_PHONE_NUMBER!,  // Número configurado en Twilio
-    to: phone,
-  });
+interface VerificationSession {
+  [phone: string]: string;
 }
 
-// Verifica que el código proporcionado sea válido y no expirado para ese teléfono
+// Simula almacenamiento temporal de códigos (para pruebas)
+const verificationSessions: VerificationSession = {};
+
+/**
+ * Envía un código de verificación al teléfono (simulado).
+ * El SMS real debe enviarse desde frontend con Firebase SDK.
+ */
+export function sendVerificationCode(phone: string) {
+  const code = Math.floor(100000 + Math.random() * 900000).toString();
+  verificationSessions[phone] = code;
+
+  console.log(`Código generado para ${phone}: ${code}`); // Solo para desarrollo
+
+  return { success: true, message: "Código enviado (simulado)" };
+}
+
+/**
+ * Verifica el código ingresado por el usuario
+ */
 export function verifyCode(phone: string, code: string) {
-  const record = verificationCodes[phone];
-  if (!record) return { success: false, message: 'No se envió código a este número' };
+  const record = verificationSessions[phone];
+  if (!record) return { success: false, message: "No se envió código a este número" };
+  if (record !== code) return { success: false, message: "Código incorrecto" };
 
-  if (record.expires < Date.now()) {
-    delete verificationCodes[phone];  // Elimina código expirado
-    return { success: false, message: 'El código expiró' };
+  delete verificationSessions[phone]; // Evita reutilización
+  return { success: true, message: "Número verificado correctamente" };
+}
+
+/**
+ * Verifica un token de Firebase real (generado por frontend)
+ */
+export async function verifyFirebaseToken(idToken: string) {
+  try {
+    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    return { success: true, uid: decodedToken.uid };
+  } catch (error) {
+    return { success: false, message: "Token inválido", error };
   }
-
-  if (record.code !== code) return { success: false, message: 'Código incorrecto' }; 
-
-  delete verificationCodes[phone];  // Código válido, elimina para no reutilizar
-  return { success: true, message: 'Número verificado correctamente' };
 }
