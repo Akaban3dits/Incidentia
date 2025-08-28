@@ -4,146 +4,122 @@ import {
   ConflictError,
   InternalServerError,
   NotFoundError,
+  BadRequestError,
 } from "../utils/error";
-/**
- * Servicio para manejar la lógica de negocios relacionada con Departamentos.
- * Separa la lógica de la base de datos de los controladores.
- */
+import {
+  CreateDepartmentInput,
+  UpdateDepartmentInput,
+  ListDepartmentsParams,
+} from "../types/department.types";
+
 export class DepartmentService {
-  /**
-   * Crea un nuevo departamento.
-   * @param department_name Nombre del departamento a crear
-   * @returns El departamento creado
-   * @throws InternalServerError si ocurre un error de base de datos
-   */
-  static async createDepartment(department_name: string) {
+  // CREATE
+  static async createDepartment(payload: CreateDepartmentInput) {
     try {
-      // Verifica existencia de departamento con el mismo nombre
-      const existing = await Department.findOne({
-        where: { department_name },
-      });
+      const name = payload.name?.trim();
+      if (!name) throw new BadRequestError("El nombre del departamento es obligatorio.");
 
-      if (existing) {
-        // Se recomienda usar un error personalizado en lugar de Error genérico
-        throw new ConflictError("El nombre del departamento ya existe.");
-      }
+      const existing = await Department.findOne({ where: { name } });
+      if (existing) throw new ConflictError("El nombre del departamento ya existe.");
 
-      // Crea el departamento en la base de datos
-      const department = await Department.create({
-        department_name: department_name.trim(), // Elimina espacios al inicio y final
-      });
-
-      return department; // Retorna el objeto creado
+      const department = await Department.create({ name });
+      return department;
     } catch (error) {
-      // Captura errores inesperados y lanza un error genérico de servidor
+      if (error instanceof ConflictError || error instanceof BadRequestError) throw error;
       throw new InternalServerError("Error al crear el departamento.");
     }
   }
 
-  /**
-   * Busca un departamento por su ID.
-   * @param id ID del departamento
-   * @returns El departamento encontrado
-   * @throws NotFoundError si no existe el departamento
-   */
-  static async findById(id: string) {
-    const department = await Department.findByPk(id);
-
-    if (!department) {
-      // Mensaje claro con id incluido para debugging
-      throw new NotFoundError(`Departamento con id ${id} no encontrado.`);
+  // READ by ID
+  static async findById(id: number) {
+    if (id === undefined || id === null || Number.isNaN(Number(id))) {
+      throw new BadRequestError("El ID del departamento es obligatorio y debe ser numérico.");
     }
+
+    const department = await Department.findByPk(Number(id));
+    if (!department) throw new NotFoundError(`Departamento con id ${id} no encontrado.`);
 
     return department;
   }
 
-  /**
-   * Obtiene todos los departamentos de la base de datos con:
-   * - Paginación: limit y offset
-   * - Búsqueda por nombre (insensible a mayúsculas/minúsculas)
-   * - Orden ascendente por nombre
-   *
-   * @param search Texto para filtrar departamentos por nombre
-   * @param limit Número máximo de registros a devolver (por defecto 20)
-   * @param offset Índice desde donde empezar (útil para paginación)
-   * @returns Objeto con { rows, count } donde rows son los departamentos y count el total
-   */
-  static async findAll({ search = "", limit = 20, offset = 0 }) {
+  // LIST
+  static async findAll(params: ListDepartmentsParams = {}) {
     try {
-      // Construye cláusula WHERE si hay texto de búsqueda
-      const whereClause = search
-        ? {
-            department_name: {
-              [Op.iLike]: `%${search}%`, // Búsqueda insensible a mayúsculas/minúsculas
-            },
-          }
+      const {
+        search = "",
+        limit = 20,
+        offset = 0,
+        sort = "name",
+        order = "ASC",
+      } = params;
+
+      if (limit <= 0 || offset < 0) {
+        throw new BadRequestError("Parámetros de paginación inválidos.");
+      }
+
+      const whereClause = search.trim()
+        ? { name: { [Op.iLike]: `%${search.trim()}%` } } // Si usas MySQL, cambia a Op.like
         : {};
 
-      // findAndCountAll devuelve filas + total para paginación
       const departments = await Department.findAndCountAll({
         where: whereClause,
-        limit, // máximo de registros a devolver
-        offset, // paginación
-        order: [["department_name", "ASC"]], // orden ascendente
+        limit,
+        offset,
+        order: [[sort, order]],
       });
 
-      return departments; // Muy importante retornar los resultados
+      return departments;
     } catch (error) {
-      // Lanzar error genérico de servidor si algo falla
+      if (error instanceof BadRequestError) throw error;
       throw new InternalServerError("Error al obtener los departamentos.");
     }
   }
 
-  static async updateDepartment(id: string, department_name: string) {
+  // UPDATE
+  static async updateDepartment(id: number, payload: UpdateDepartmentInput) {
     try {
+      const name = payload.name?.trim();
+      if (!name) throw new BadRequestError("El nombre del departamento es obligatorio.");
+
       const department = await this.findById(id);
 
       const existing = await Department.findOne({
         where: {
-          department_name,
-          department_id: { [Op.ne]: id },
+          name,
+          id: { [Op.ne]: Number(id) },
         },
       });
+      if (existing) throw new ConflictError("El nombre del departamento ya existe.");
 
-      if (existing) {
-        throw new ConflictError("El nombre del departamento ya existe.");
-      }
-
-      if (department.department_name !== department_name) {
-        department.department_name = department_name;
-      }
-
+      department.name = name;
       await department.save();
 
       return department;
     } catch (error) {
-      if (error instanceof NotFoundError) {
+      if (
+        error instanceof NotFoundError ||
+        error instanceof ConflictError ||
+        error instanceof BadRequestError
+      ) {
         throw error;
       }
       throw new InternalServerError("Error al actualizar el departamento.");
     }
   }
 
-  static async deleteDepartment(id: string) {
+  // DELETE
+  static async deleteDepartment(id: number) {
     try {
-      const department = await this.findById(id); // Verifica existencia
-
-      await department.destroy(); // Intenta eliminar
-
-      return; // Si todo salió bien, no hace falta devolver nada
+      const department = await this.findById(id);
+      await department.destroy();
     } catch (error: any) {
-      if (error instanceof NotFoundError) {
-        throw error; // Registro no encontrado
-      }
+      if (error instanceof NotFoundError) throw error;
 
-      // Manejo de conflictos de eliminación (por ejemplo, restricciones FK)
-      if (error.name === "SequelizeForeignKeyConstraintError") {
+      if (error?.name === "SequelizeForeignKeyConstraintError") {
         throw new ConflictError(
           "No se puede eliminar el departamento porque tiene registros dependientes."
         );
       }
-
-      // Otros errores inesperados
       throw new InternalServerError("Error al eliminar el departamento.");
     }
   }

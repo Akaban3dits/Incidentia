@@ -30,7 +30,7 @@ DeviceType.init(
       allowNull: false,
     },
     type_code: {
-      type: DataTypes.STRING(100),
+      type: DataTypes.STRING(3),
       unique: true,
       allowNull: true,
     },

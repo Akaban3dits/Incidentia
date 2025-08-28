@@ -16,7 +16,7 @@ interface UserAttributes {
   role: UserRole;
   provider?: string | null;
   provider_id?: string | null;
-  department_id?: number | null;
+  department_id?: number | null;   // FK -> departments.id
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -111,8 +111,10 @@ User.init(
       allowNull: true,
       references: {
         model: "departments",
-        key: "department_id",
+        key: "id",
       },
+      onUpdate: "CASCADE",
+      onDelete: "SET NULL",
     },
   },
   {
@@ -121,10 +123,7 @@ User.init(
     tableName: "users",
     timestamps: true,
     indexes: [
-      {
-        unique: true,
-        fields: ["provider", "provider_id"],
-      },
+      { unique: true, fields: ["provider", "provider_id"] },
     ],
   }
 );
