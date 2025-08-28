@@ -6,9 +6,9 @@ interface NotificationAttributes {
   notification_id: number;
   message: string;
   type: NotificationType;
+  ticket_id?: string | null; 
   createdAt?: Date;
   updatedAt?: Date;
-  ticket_id?: string | null; // FK UUID Ticket (nullable)
 }
 
 type NotificationCreationAttributes = Optional<
@@ -29,11 +29,29 @@ class Notification
   public readonly updatedAt!: Date;
 
   public static associate(models: { [key: string]: ModelStatic<Model> }): void {
-    Notification.belongsTo(models.Ticket, { foreignKey: "ticket_id" });
+    Notification.belongsTo(models.Ticket, {
+      foreignKey: "ticket_id",
+      as: "ticket",
+      onDelete: "SET NULL", 
+    });
+
     Notification.belongsToMany(models.User, {
-      through: models.NotificationUser,
+      through: models.NotificationUser, 
       foreignKey: "notification_id",
       otherKey: "user_id",
+      as: "recipients",
+    });
+  }
+
+  static initScopes() {
+    Notification.addScope("byType", (type: NotificationType) => ({
+      where: { type },
+    }));
+    Notification.addScope("byTicket", (ticket_id: string) => ({
+      where: { ticket_id },
+    }));
+    Notification.addScope("recent", {
+      order: [["createdAt", "DESC"]],
     });
   }
 }
@@ -67,7 +85,14 @@ Notification.init(
     modelName: "Notification",
     tableName: "notifications",
     timestamps: true,
+    indexes: [
+      { fields: ["ticket_id"] },
+      { fields: ["type"] },
+      { fields: ["createdAt"] },
+    ],
   }
 );
+
+Notification.initScopes?.();
 
 export default Notification;

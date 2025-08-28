@@ -1,3 +1,4 @@
+// src/services/user.service.ts
 import bcrypt from "bcrypt";
 import { CompanyType } from "../enums/companyType.enum";
 import { UserRole } from "../enums/userRole.enum";
@@ -16,8 +17,10 @@ import {
   GoogleProfile,
 } from "../types/user.types";
 
+const SALT_ROUNDS = Number(process.env.SALT_ROUNDS ?? 10);
+const norm = (s: string) => s.trim().replace(/\s+/g, " ");
+
 export class UserService {
-  // CREATE (email/password)
   static async createUser(data: CreateUserInput) {
     try {
       const email = data.email?.trim().toLowerCase();
@@ -28,15 +31,13 @@ export class UserService {
       }
 
       const existingUser = await User.findOne({ where: { email } });
-      if (existingUser) {
-        throw new ConflictError("El correo electrónico ya está en uso.");
-      }
+      if (existingUser) throw new ConflictError("El correo electrónico ya está en uso.");
 
-      const hashedPassword = await bcrypt.hash(data.password, 10);
+      const hashedPassword = await bcrypt.hash(data.password, SALT_ROUNDS);
 
       const user = await User.create({
-        first_name: data.first_name.trim(),
-        last_name: data.last_name.trim(),
+        first_name: norm(data.first_name),
+        last_name: norm(data.last_name),
         email,
         password: hashedPassword,
         phone_number: data.phone_number ?? null,
@@ -45,14 +46,17 @@ export class UserService {
         status: UserStatus.Activo,
       });
 
-      return user;
-    } catch (error) {
+      const safe = await User.findByPk(user.user_id);
+      return safe!;
+    } catch (error: any) {
       if (error instanceof BadRequestError || error instanceof ConflictError) throw error;
+      if (error?.name === "SequelizeUniqueConstraintError") {
+        throw new ConflictError("El correo electrónico ya está en uso.");
+      }
       throw new InternalServerError("Error al crear el usuario.");
     }
   }
 
-  // READ by ID (UUID)
   static async findById(id: string) {
     if (!id) throw new BadRequestError("El ID del usuario es obligatorio.");
     const user = await User.findByPk(id);
@@ -60,29 +64,44 @@ export class UserService {
     return user;
   }
 
-  // Google: find or create
   static async findOrCreateGoogleUser(profile: GoogleProfile) {
     try {
       const provider = "google";
       const provider_id = profile.id;
+      const email = profile.emails?.[0]?.value?.toLowerCase()?.trim();
 
       let user = await User.findOne({ where: { provider, provider_id } });
+      if (user) return user;
 
-      if (!user) {
-        user = await User.create({
-          first_name: profile.name?.givenName || "",
-          last_name: profile.name?.familyName || "",
-          email: profile.emails?.[0]?.value?.toLowerCase() || "",
-          status: UserStatus.Activo,
-          company: CompanyType.Externa,
-          role: UserRole.Estandar,
-          provider,
-          provider_id,
-        });
+      if (email) {
+        const byEmail = await User.findOne({ where: { email } });
+        if (byEmail) {
+          byEmail.provider = provider;
+          byEmail.provider_id = provider_id;
+          await byEmail.save();
+          return byEmail;
+        }
+      } else {
+        throw new BadRequestError("El perfil de Google no contiene email.");
       }
 
+      user = await User.create({
+        first_name: profile.name?.givenName ? norm(profile.name.givenName) : "",
+        last_name: profile.name?.familyName ? norm(profile.name.familyName) : "",
+        email,
+        status: UserStatus.Activo,
+        company: CompanyType.Externa,
+        role: UserRole.Estandar,
+        provider,
+        provider_id,
+      });
+
       return user;
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.name === "SequelizeUniqueConstraintError") {
+        throw new ConflictError("El correo o el proveedor ya está en uso.");
+      }
+      if (error instanceof BadRequestError) throw error;
       throw new InternalServerError("Error al procesar el usuario de Google.");
     }
   }
@@ -96,10 +115,11 @@ export class UserService {
       const existing = await this.findOneByRole(UserRole.Administrador);
       if (existing) throw new ConflictError("Ya existe un usuario admin.");
 
+      const email = profile.emails?.[0]?.value?.toLowerCase()?.trim() ?? "";
       const adminUser = await User.create({
-        first_name: profile.name?.givenName || "",
-        last_name: profile.name?.familyName || "",
-        email: profile.emails?.[0]?.value?.toLowerCase() || "",
+        first_name: profile.name?.givenName ? norm(profile.name.givenName) : "",
+        last_name: profile.name?.familyName ? norm(profile.name.familyName) : "",
+        email,
         status: UserStatus.Activo,
         company: CompanyType.Externa,
         role: UserRole.Administrador,
@@ -108,13 +128,15 @@ export class UserService {
       });
 
       return adminUser;
-    } catch (error) {
+    } catch (error: any) {
       if (error instanceof ConflictError) throw error;
+      if (error?.name === "SequelizeUniqueConstraintError") {
+        throw new ConflictError("El correo o el proveedor ya está en uso.");
+      }
       throw new InternalServerError("Error al crear el usuario administrador.");
     }
   }
 
-  // PATCH profile
   static async completeUserProfile(userId: string, profileData: UpdateUserProfileInput) {
     try {
       const user = await this.findById(userId);
@@ -133,17 +155,15 @@ export class UserService {
         if (!profileData.password.trim()) {
           throw new BadRequestError("La contraseña no puede estar vacía.");
         }
-        user.password = await bcrypt.hash(profileData.password, 10);
+        user.password = await bcrypt.hash(profileData.password, SALT_ROUNDS);
       }
 
-      if (profileData.department_id !== undefined) {
-        if (profileData.department_id === null as any) {
-          user.department_id = null;
-        } else {
-          const department = await Department.findByPk(profileData.department_id);
-          if (!department) throw new NotFoundError("Departamento no encontrado.");
-          user.department_id = profileData.department_id;
-        }
+      if (profileData.department_id === null) {
+        user.department_id = null;
+      } else if (profileData.department_id !== undefined) {
+        const department = await Department.findByPk(profileData.department_id);
+        if (!department) throw new NotFoundError("Departamento no encontrado.");
+        user.department_id = profileData.department_id;
       }
 
       if (profileData.company !== undefined) {
@@ -152,14 +172,18 @@ export class UserService {
 
       await user.save();
 
-      const { password, ...userWithoutPassword } = user.toJSON();
+      const { password, ...userWithoutPassword } = user.get({ plain: true }) as any;
       return userWithoutPassword;
-    } catch (error) {
+    } catch (error: any) {
       if (
         error instanceof ConflictError ||
         error instanceof NotFoundError ||
         error instanceof BadRequestError
       ) throw error;
+
+      if (error?.name === "SequelizeUniqueConstraintError") {
+        throw new ConflictError("Campo único ya está en uso.");
+      }
 
       throw new InternalServerError("Error al completar el perfil.");
     }

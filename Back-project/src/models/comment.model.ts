@@ -2,16 +2,19 @@ import { DataTypes, Model, Optional, ModelStatic } from "sequelize";
 import { sequelize } from "../config/sequelize";
 
 interface CommentAttributes {
-  comment_id: string; // UUID
+  comment_id: string; 
   comment_text: string;
-  ticket_id: string; // FK UUID Ticket
-  user_id: string; // FK UUID User
-  parent_comment_id?: string | null; // FK UUID Comment
+  ticket_id: string; 
+  user_id: string;   
+  parent_comment_id?: string | null; 
   createdAt?: Date;
   updatedAt?: Date;
 }
 
-type CommentCreationAttributes = Optional<CommentAttributes, "comment_id" | "parent_comment_id" | "createdAt" | "updatedAt">;
+type CommentCreationAttributes = Optional<
+  CommentAttributes,
+  "comment_id" | "parent_comment_id" | "createdAt" | "updatedAt"
+>;
 
 class Comment extends Model<CommentAttributes, CommentCreationAttributes> implements CommentAttributes {
   public comment_id!: string;
@@ -24,10 +27,27 @@ class Comment extends Model<CommentAttributes, CommentCreationAttributes> implem
   public readonly updatedAt!: Date;
 
   public static associate(models: { [key: string]: ModelStatic<Model> }): void {
-    Comment.belongsTo(models.Ticket, { foreignKey: "ticket_id" });
-    Comment.belongsTo(models.User, { foreignKey: "user_id" });
-    Comment.belongsTo(models.Comment, { foreignKey: "parent_comment_id", as: "parentComment" });
-    Comment.hasMany(models.Comment, { foreignKey: "parent_comment_id", as: "childComments" });
+    Comment.belongsTo(models.Ticket, {
+      foreignKey: "ticket_id",
+      onDelete: "CASCADE",          // Borra comentarios al borrar el ticket
+    });
+    Comment.belongsTo(models.User, {
+      foreignKey: "user_id",
+      onDelete: "RESTRICT",         // Evita borrar usuario con comentarios
+    });
+    Comment.belongsTo(models.Comment, {
+      foreignKey: "parent_comment_id",
+      as: "parentComment",
+      onDelete: "CASCADE",          // Borra réplicas si se borra el padre
+    });
+    Comment.hasMany(models.Comment, {
+      foreignKey: "parent_comment_id",
+      as: "childComments",
+    });
+
+    if (models.Attachment) {
+      Comment.hasMany(models.Attachment, { foreignKey: "comment_id" });
+    }
   }
 }
 
@@ -45,26 +65,17 @@ Comment.init(
     ticket_id: {
       type: DataTypes.UUID,
       allowNull: false,
-      references: {
-        model: "tickets",
-        key: "ticket_id",
-      },
+      references: { model: "tickets", key: "ticket_id" },
     },
     user_id: {
       type: DataTypes.UUID,
       allowNull: false,
-      references: {
-        model: "users",
-        key: "user_id",
-      },
+      references: { model: "users", key: "user_id" },
     },
     parent_comment_id: {
       type: DataTypes.UUID,
       allowNull: true,
-      references: {
-        model: "comments",
-        key: "comment_id",
-      },
+      references: { model: "comments", key: "comment_id" },
     },
   },
   {
@@ -72,6 +83,12 @@ Comment.init(
     modelName: "Comment",
     tableName: "comments",
     timestamps: true,
+    indexes: [
+      { fields: ["ticket_id"] },
+      { fields: ["user_id"] },
+      { fields: ["parent_comment_id"] },
+      { fields: ["createdAt"] },
+    ],
   }
 );
 

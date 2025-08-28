@@ -11,9 +11,9 @@ interface TicketAttributes {
   status: TicketStatus;
   priority?: TicketPriority | null;
   device_id?: number | null;
-  assigned_user_id?: string | null; 
+  assigned_user_id?: string | null;
   department_id: number;
-  parent_ticket_id?: string | null; 
+  parent_ticket_id?: string | null;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -49,15 +49,66 @@ class Ticket
   public readonly updatedAt!: Date;
 
   public static associate(models: { [key: string]: ModelStatic<Model> }): void {
-    Ticket.belongsTo(models.Device, { foreignKey: "device_id" });
-    Ticket.belongsTo(models.User, { foreignKey: "assigned_user_id", as: "assignedUser" });
-    Ticket.belongsTo(models.Department, { foreignKey: "department_id" });
-    Ticket.belongsTo(models.Ticket, { foreignKey: "parent_ticket_id", as: "parentTicket" });
-    Ticket.hasMany(models.Comment, { foreignKey: "ticket_id" });
-    Ticket.hasMany(models.StatusHistory, { foreignKey: "ticket_id" });
-    Ticket.hasMany(models.Task, { foreignKey: "ticket_id" });
-    Ticket.hasMany(models.Attachment, { foreignKey: "ticket_id" });
-    Ticket.hasMany(models.Notification, { foreignKey: "ticket_id" });
+    // belongsTo
+    Ticket.belongsTo(models.Device, {
+      foreignKey: "device_id",
+      as: "device",
+      onDelete: "SET NULL",
+    });
+    Ticket.belongsTo(models.User, {
+      foreignKey: "assigned_user_id",
+      as: "assignedUser",
+      onDelete: "SET NULL",
+    });
+    Ticket.belongsTo(models.Department, {
+      foreignKey: "department_id",
+      as: "department",
+      onDelete: "RESTRICT", // o "CASCADE" si tu negocio lo permite
+    });
+    Ticket.belongsTo(models.Ticket, {
+      foreignKey: "parent_ticket_id",
+      as: "parentTicket",
+      onDelete: "SET NULL",
+    });
+
+    // hasMany
+    Ticket.hasMany(models.Comment, {
+      foreignKey: "ticket_id",
+      as: "comments",
+      onDelete: "CASCADE",
+    });
+    Ticket.hasMany(models.StatusHistory, {
+      foreignKey: "ticket_id",
+      as: "statusHistories",
+      onDelete: "CASCADE",
+    });
+    Ticket.hasMany(models.Task, {
+      foreignKey: "ticket_id",
+      as: "tasks",
+      onDelete: "CASCADE",
+    });
+    Ticket.hasMany(models.Attachment, {
+      foreignKey: "ticket_id",
+      as: "attachments",
+      onDelete: "CASCADE",
+    });
+    Ticket.hasMany(models.Notification, {
+      foreignKey: "ticket_id",
+      as: "notifications",
+      onDelete: "SET NULL", // conserva notificación si se borra ticket (opcional)
+    });
+  }
+
+  static initScopes() {
+    Ticket.addScope("open", {
+      where: { status: TicketStatus.Abierto },
+    });
+    Ticket.addScope("byDepartment", (department_id: number) => ({
+      where: { department_id },
+    }));
+    Ticket.addScope("recent", {
+      order: [["createdAt", "DESC"]],
+    });
   }
 }
 
@@ -91,34 +142,22 @@ Ticket.init(
     device_id: {
       type: DataTypes.INTEGER,
       allowNull: true,
-      references: {
-        model: "devices",
-        key: "device_id",
-      },
+      references: { model: "devices", key: "device_id" },
     },
     assigned_user_id: {
       type: DataTypes.UUID,
       allowNull: true,
-      references: {
-        model: "users",
-        key: "user_id",
-      },
+      references: { model: "users", key: "user_id" },
     },
     department_id: {
       type: DataTypes.INTEGER,
       allowNull: false,
-      references: {
-        model: "departments",
-        key: "department_id",
-      },
+      references: { model: "departments", key: "department_id" },
     },
     parent_ticket_id: {
       type: DataTypes.UUID,
       allowNull: true,
-      references: {
-        model: "tickets",
-        key: "ticket_id",
-      },
+      references: { model: "tickets", key: "ticket_id" },
     },
   },
   {
@@ -126,7 +165,17 @@ Ticket.init(
     modelName: "Ticket",
     tableName: "tickets",
     timestamps: true,
+    indexes: [
+      { fields: ["status"] },
+      { fields: ["priority"] },
+      { fields: ["department_id"] },
+      { fields: ["assigned_user_id"] },
+      { fields: ["device_id"] },
+      { fields: ["createdAt"] },
+    ],
   }
 );
+
+Ticket.initScopes?.();
 
 export default Ticket;

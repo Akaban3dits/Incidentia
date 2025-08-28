@@ -1,20 +1,27 @@
-export type CreateAttachmentInput = {
-  ticket_id: string;
+export interface CreateAttachmentInput {
   file_path: string;
   original_filename: string;
   is_image?: boolean;
   uploaded_at?: Date;
-};
+  ticket_id?: string | null;
+  comment_id?: string | null;
+}
 
-export type UpdateAttachmentInput = Partial<
-  Pick<CreateAttachmentInput, "file_path" | "original_filename" | "is_image">
->;
+export interface UpdateAttachmentInput {
+  file_path?: string;
+  original_filename?: string;
+  is_image?: boolean;
+}
 
-export type ListAttachmentsParams = {
+export interface ListAttachmentsParams {
   ticketId?: string;
+  commentId?: string;
+  isImage?: boolean;
+  uploadedFrom?: Date | string;
+  uploadedTo?: Date | string;
   search?: string;
   limit?: number;
   offset?: number;
-  sort?: "uploaded_at" | "original_filename";
+  sort?: "uploaded_at" | "original_filename" | "createdAt";
   order?: "ASC" | "DESC";
-};
+}

@@ -2,8 +2,8 @@ import { DataTypes, Model, Optional, ModelStatic } from "sequelize";
 import { sequelize } from "../config/sequelize";
 
 interface NotificationUserAttributes {
-  notification_id: string; 
-  user_id: string;         
+  notification_id: number;  
+  user_id: string;          
   read_at?: Date | null;
   hidden: boolean;
 }
@@ -17,19 +17,30 @@ class NotificationUser
   extends Model<NotificationUserAttributes, NotificationUserCreationAttributes>
   implements NotificationUserAttributes
 {
-  public notification_id!: string;
+  public notification_id!: number;
   public user_id!: string;
   public read_at!: Date | null;
   public hidden!: boolean;
 
   public static associate(models: { [key: string]: ModelStatic<Model> }): void {
+    NotificationUser.belongsTo(models.Notification, {
+      foreignKey: "notification_id",
+      as: "notification",
+      onDelete: "CASCADE",
+    });
+
+    NotificationUser.belongsTo(models.User, {
+      foreignKey: "user_id",
+      as: "user",
+      onDelete: "CASCADE",
+    });
   }
 }
 
 NotificationUser.init(
   {
     notification_id: {
-      type: DataTypes.UUID,
+      type: DataTypes.INTEGER,
       primaryKey: true,
       references: {
         model: "notifications",
@@ -57,7 +68,7 @@ NotificationUser.init(
   {
     sequelize,
     modelName: "NotificationUser",
-    tableName: "notification_user",
+    tableName: "notification_users",
     timestamps: false,
   }
 );

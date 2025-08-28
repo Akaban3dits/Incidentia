@@ -54,7 +54,37 @@ class User
   public readonly updatedAt!: Date;
 
   public static associate(models: { [key: string]: ModelStatic<Model> }): void {
-    User.belongsTo(models.Department, { foreignKey: "department_id" });
+
+    User.belongsTo(models.Department, {
+      foreignKey: "department_id",
+      as: "department",
+      onDelete: "SET NULL",
+      onUpdate: "CASCADE",
+    });
+
+    User.hasMany(models.Ticket, {
+      foreignKey: "assigned_user_id",
+      as: "assignedTickets",
+    });
+
+    User.hasMany(models.Comment, {
+      foreignKey: "user_id",
+      as: "comments",
+    });
+
+    User.hasMany(models.StatusHistory, {
+      foreignKey: "changed_by_user_id",
+      as: "statusChanges",
+    });
+
+    if (models.Notification && models.NotificationUser) {
+      User.belongsToMany(models.Notification, {
+        through: models.NotificationUser,
+        foreignKey: "user_id",
+        otherKey: "notification_id",
+        as: "notifications",
+      });
+    }
   }
 }
 
@@ -76,7 +106,7 @@ User.init(
     email: {
       type: DataTypes.STRING(100),
       allowNull: false,
-      unique: true,
+      unique: true, 
     },
     password: {
       type: DataTypes.STRING(255),
@@ -113,8 +143,6 @@ User.init(
         model: "departments",
         key: "id",
       },
-      onUpdate: "CASCADE",
-      onDelete: "SET NULL",
     },
   },
   {
@@ -122,8 +150,16 @@ User.init(
     modelName: "User",
     tableName: "users",
     timestamps: true,
+    defaultScope: {
+      attributes: { exclude: ["password"] }, 
+    },
     indexes: [
+      { unique: true, fields: ["email"] },
       { unique: true, fields: ["provider", "provider_id"] },
+      { fields: ["status"] },
+      { fields: ["role"] },
+      { fields: ["department_id"] },
+      { fields: ["createdAt"] },
     ],
   }
 );

@@ -1,3 +1,4 @@
+// src/services/attachment.service.ts
 import { Op } from "sequelize";
 import Attachment from "../models/attachment.model";
 import {
@@ -12,41 +13,51 @@ import {
   ListAttachmentsParams,
 } from "../types/attachment.types";
 
+const SORT_MAP: Record<string, string> = {
+  uploaded_at: "uploaded_at",
+  original_filename: "original_filename",
+  createdAt: "createdAt",
+};
+
 export class AttachmentService {
   static async create(data: CreateAttachmentInput) {
     try {
-      if (!data.ticket_id) throw new BadRequestError("El ticket_id es obligatorio.");
-      if (!data.file_path?.trim()) throw new BadRequestError("El file_path es obligatorio.");
-      if (!data.original_filename?.trim())
-        throw new BadRequestError("El original_filename es obligatorio.");
+      const file_path = data.file_path.trim();
+      const original_filename = data.original_filename.trim();
 
-      const existing = await Attachment.findOne({
-        where: { ticket_id: data.ticket_id, file_path: data.file_path.trim() },
-      });
+      const whereUnique: any = { file_path };
+      if (data.ticket_id) whereUnique.ticket_id = data.ticket_id;
+      if (data.comment_id) whereUnique.comment_id = data.comment_id;
+
+      const existing = await Attachment.findOne({ where: whereUnique });
       if (existing) {
-        throw new ConflictError("Ya existe un adjunto con el mismo file_path para este ticket.");
+        throw new ConflictError("Ya existe un adjunto con el mismo file_path en este recurso.");
       }
 
       const row = await Attachment.create({
-        ticket_id: data.ticket_id,
-        file_path: data.file_path.trim(),
-        original_filename: data.original_filename.trim(),
-        is_image: data.is_image ?? false,
+        ticket_id: data.ticket_id ?? null,
+        comment_id: data.comment_id ?? null,
+        file_path,
+        original_filename,
+        is_image: !!data.is_image,
         uploaded_at: data.uploaded_at ?? new Date(),
       });
 
       return row;
     } catch (error: any) {
-      if (error instanceof BadRequestError || error instanceof ConflictError) throw error;
+      if (error instanceof ConflictError) throw error;
+
       if (error?.name === "SequelizeForeignKeyConstraintError") {
-        throw new BadRequestError("FK inválida: ticket_id no existe.");
+        const col = error?.fields ? Object.keys(error.fields)[0] : undefined;
+        if (col === "ticket_id") throw new BadRequestError("FK inválida: ticket_id no existe.");
+        if (col === "comment_id") throw new BadRequestError("FK inválida: comment_id no existe.");
+        throw new BadRequestError("FK inválida en el adjunto.");
       }
       throw new InternalServerError("Error al crear el adjunto.");
     }
   }
 
   static async findById(id: string) {
-    if (!id) throw new BadRequestError("El ID del adjunto es obligatorio.");
     const row = await Attachment.findByPk(id);
     if (!row) throw new NotFoundError(`Adjunto con id ${id} no encontrado.`);
     return row;
@@ -56,6 +67,10 @@ export class AttachmentService {
     try {
       const {
         ticketId,
+        commentId,
+        isImage,
+        uploadedFrom,
+        uploadedTo,
         search = "",
         limit = 20,
         offset = 0,
@@ -63,47 +78,63 @@ export class AttachmentService {
         order = "DESC",
       } = params;
 
-      if (limit <= 0 || offset < 0) {
-        throw new BadRequestError("Parámetros de paginación inválidos.");
-      }
+      const sortCol = SORT_MAP[sort] ?? "uploaded_at";
+      const sortDir = order === "ASC" ? "ASC" : "DESC";
 
       const where: any = {};
       if (ticketId) where.ticket_id = ticketId;
-      if (search.trim()) where.original_filename = { [Op.iLike]: `%${search.trim()}%` };
+      if (commentId) where.comment_id = commentId;
+      if (typeof isImage === "boolean") where.is_image = isImage;
+
+      if (uploadedFrom || uploadedTo) {
+        where.uploaded_at = {};
+        if (uploadedFrom) where.uploaded_at[Op.gte] = uploadedFrom;
+        if (uploadedTo) where.uploaded_at[Op.lte] = uploadedTo;
+      }
+
+      if (search.trim()) {
+        const s = `%${search.trim()}%`;
+        where[Op.or] = [
+          { original_filename: { [Op.iLike]: s } },
+          { file_path: { [Op.iLike]: s } },
+        ];
+      }
 
       return Attachment.findAndCountAll({
         where,
         limit,
         offset,
-        order: [[sort, order]],
+        order: [[sortCol, sortDir]],
       });
-    } catch (error) {
-      if (error instanceof BadRequestError) throw error;
+    } catch {
       throw new InternalServerError("Error al obtener los adjuntos.");
     }
   }
 
   static async update(id: string, data: UpdateAttachmentInput) {
     try {
-      if (!id) throw new BadRequestError("El ID del adjunto es obligatorio.");
       const row = await this.findById(id);
 
       const patch: any = {};
-      if (data.file_path !== undefined) {
-        if (!data.file_path.trim()) throw new BadRequestError("file_path no puede ser vacío.");
-        patch.file_path = data.file_path.trim();
-      }
-      if (data.original_filename !== undefined) {
-        if (!data.original_filename.trim())
-          throw new BadRequestError("original_filename no puede ser vacío.");
-        patch.original_filename = data.original_filename.trim();
-      }
+      if (data.file_path !== undefined) patch.file_path = data.file_path.trim();
+      if (data.original_filename !== undefined) patch.original_filename = data.original_filename.trim();
       if (data.is_image !== undefined) patch.is_image = !!data.is_image;
+
+      if (patch.file_path) {
+        const whereUnique: any = { file_path: patch.file_path };
+        if (row.ticket_id) whereUnique.ticket_id = row.ticket_id;
+        if (row.comment_id) whereUnique.comment_id = row.comment_id;
+
+        const dup = await Attachment.findOne({
+          where: { ...whereUnique, attachment_id: { [Op.ne]: id } },
+        });
+        if (dup) throw new ConflictError("Ya existe un adjunto con ese file_path en este recurso.");
+      }
 
       await row.update(patch);
       return row;
     } catch (error: any) {
-      if (error instanceof NotFoundError || error instanceof BadRequestError) throw error;
+      if (error instanceof NotFoundError || error instanceof ConflictError) throw error;
       if (error?.name === "SequelizeUniqueConstraintError") {
         throw new ConflictError("Conflicto al actualizar: constraint única violada.");
       }
@@ -113,11 +144,10 @@ export class AttachmentService {
 
   static async delete(id: string) {
     try {
-      if (!id) throw new BadRequestError("El ID del adjunto es obligatorio.");
       const row = await this.findById(id);
       await row.destroy();
     } catch (error: any) {
-      if (error instanceof NotFoundError || error instanceof BadRequestError) throw error;
+      if (error instanceof NotFoundError) throw error;
       if (error?.name === "SequelizeForeignKeyConstraintError") {
         throw new ConflictError("No se puede eliminar el adjunto por dependencias existentes.");
       }
