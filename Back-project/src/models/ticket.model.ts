@@ -63,7 +63,7 @@ class Ticket
     Ticket.belongsTo(models.Department, {
       foreignKey: "department_id",
       as: "department",
-      onDelete: "RESTRICT", // o "CASCADE" si tu negocio lo permite
+      onDelete: "RESTRICT", 
     });
     Ticket.belongsTo(models.Ticket, {
       foreignKey: "parent_ticket_id",
@@ -71,7 +71,6 @@ class Ticket
       onDelete: "SET NULL",
     });
 
-    // hasMany
     Ticket.hasMany(models.Comment, {
       foreignKey: "ticket_id",
       as: "comments",
@@ -95,7 +94,7 @@ class Ticket
     Ticket.hasMany(models.Notification, {
       foreignKey: "ticket_id",
       as: "notifications",
-      onDelete: "SET NULL", // conserva notificación si se borra ticket (opcional)
+      onDelete: "SET NULL", 
     });
   }
 

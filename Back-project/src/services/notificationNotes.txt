@@ -1,0 +1,94 @@
+Información · Advertencia · Alerta · Recordatorio
+Tokens:
+#{TICKET8} = primeros 8 caracteres de ticket_id
+{SNIPPET} = extracto corto del comentario
+
+Creación y asignación
+1.1) Nuevo ticket creado
+Tipo: Información
+Cuándo: al crear un ticket
+Dónde: TicketService.create
+A quién: Administradores del departamento “Sistemas”
+Mensaje: Nuevo ticket creado (#{TICKET8}).
+
+1.2) Ticket creado sin encargado
+Tipo: Advertencia
+Cuándo: el ticket nace con assigned_user_id = null
+Dónde: TicketService.create
+A quién: Administradores del departamento del ticket + Administradores de “Sistemas”
+Mensaje: Ticket sin encargado (#{TICKET8}).
+
+1.3) Cambio de encargado (asignación)
+Tipo: Información
+Cuándo: cambia assigned_user_id
+Dónde: TicketService.update
+A quién: Nuevo encargado
+Mensaje: Se te asignó el ticket #{TICKET8}.
+
+Cambios de estado y prioridad
+2.1) Prioridad cambiada a Crítica
+Tipo: Alerta
+Cuándo: priority → Crítica
+Dónde: TicketService.update
+A quién: Administradores del departamento del ticket + Administradores de “Sistemas” + Encargado (si hay)
+Mensaje: Prioridad CRÍTICA en ticket #{TICKET8}.
+
+2.2) Ticket reabierto (de Cerrado → otro estado)
+Tipo: Advertencia
+Cuándo: status cambia de Cerrado a Abierto/En Progreso/Resuelto
+Dónde: TicketService.update
+A quién: Administradores del departamento del ticket + Administradores de “Sistemas” + Encargado (si hay)
+Mensaje: Ticket reabierto (#{TICKET8}).
+
+2.3) Ticket cerrado
+Tipo: Información
+Cuándo: status → Cerrado
+Dónde: TicketService.update
+A quién: Encargado (si hay) + Administradores del departamento del ticket
+Mensaje: Ticket cerrado (#{TICKET8}).
+
+Colaboración (comentarios y adjuntos)
+3.1) Nuevo comentario
+Tipo: Información
+Cuándo: se crea Comment
+Dónde: CommentService.create
+A quién: Encargado + autor del comentario padre si es respuesta (excluir autor actual)
+Mensaje (comentario): Nuevo comentario en ticket #{TICKET8}: "{SNIPPET}"
+Mensaje (respuesta): Nueva respuesta en ticket #{TICKET8}: "{SNIPPET}"
+
+3.2) Nuevo adjunto
+Tipo: Información
+Cuándo: se crea Attachment (en ticket o comentario)
+Dónde: AttachmentService.create
+A quién: Encargado + autor del comentario si el adjunto viene de un comentario
+Mensaje: Nuevo adjunto agregado al ticket #{TICKET8}.
+
+Cambios organizativos
+4.1) Ticket movido de departamento
+Tipo: Información
+Cuándo: cambia department_id
+Dónde: TicketService.update
+A quién: Administradores del nuevo departamento
+Mensaje: Ticket movido de departamento (#{TICKET8}).
+
+4.2) Ticket quedó sin encargado
+Tipo: Advertencia
+Cuándo: assigned_user_id → null por actualización
+Dónde: TicketService.update
+A quién: Administradores del departamento del ticket + Administradores de “Sistemas”
+Mensaje: Ticket quedó sin encargado (#{TICKET8}).
+
+Recordatorios (jobs/cron)
+5.1) Ticket estancado
+Tipo: Recordatorio
+Cuándo: sin cambios en StatusHistory por N días
+Dónde: job/cron diario
+A quién: Encargado + (opcional) Administradores de “Sistemas”
+Mensaje: Recordatorio: ticket sin movimiento (#{TICKET8}).
+
+5.2) Tareas pendientes
+Tipo: Recordatorio
+Cuándo: existen Task con is_completed = false creadas hace > N días
+Dónde: job/cron diario
+A quién: Encargado
+Mensaje: Recordatorio: tareas pendientes en ticket #{TICKET8}.

@@ -29,16 +29,16 @@ class Comment extends Model<CommentAttributes, CommentCreationAttributes> implem
   public static associate(models: { [key: string]: ModelStatic<Model> }): void {
     Comment.belongsTo(models.Ticket, {
       foreignKey: "ticket_id",
-      onDelete: "CASCADE",          // Borra comentarios al borrar el ticket
+      onDelete: "CASCADE",          
     });
     Comment.belongsTo(models.User, {
       foreignKey: "user_id",
-      onDelete: "RESTRICT",         // Evita borrar usuario con comentarios
+      onDelete: "RESTRICT",         
     });
     Comment.belongsTo(models.Comment, {
       foreignKey: "parent_comment_id",
       as: "parentComment",
-      onDelete: "CASCADE",          // Borra réplicas si se borra el padre
+      onDelete: "CASCADE",          
     });
     Comment.hasMany(models.Comment, {
       foreignKey: "parent_comment_id",
