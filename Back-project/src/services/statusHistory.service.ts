@@ -1,7 +1,4 @@
-import { Op } from "sequelize";
 import StatusHistory from "../models/statusHistory.model";
-import Ticket from "../models/ticket.model";
-import User from "../models/user.model";
 import {
   BadRequestError,
   InternalServerError,
@@ -14,7 +11,7 @@ import {
 } from "../types/statusHistory.types";
 import { TicketStatus } from "../enums/ticketStatus.enum";
 
-const SORT_MAP: Record<string, string> = {
+const SORT_MAP: Record<string, "changed_at" | "createdAt" | "updatedAt"> = {
   changed_at: "changed_at",
   createdAt: "createdAt",
   updatedAt: "updatedAt",
@@ -43,19 +40,16 @@ export class StatusHistoryService {
         changed_at: changed_at ? new Date(changed_at) : new Date(),
       });
 
-      return await StatusHistory.findByPk(row.history_id, {
-        include: [
-          { model: Ticket, as: "ticket" },
-          { model: User, as: "changedByUser" },
-        ],
-      });
+      return await StatusHistory.scope("withRelations").findByPk(row.history_id);
     } catch (error: any) {
       if (error instanceof BadRequestError) throw error;
 
       if (error?.name === "SequelizeForeignKeyConstraintError") {
         const col = error?.fields ? Object.keys(error.fields)[0] : undefined;
-        if (col === "ticket_id") throw new BadRequestError("FK inválida: ticket_id no existe.");
-        if (col === "changed_by_user_id") throw new BadRequestError("FK inválida: changed_by_user_id no existe.");
+        if (col === "ticket_id")
+          throw new BadRequestError("FK inválida: ticket_id no existe.");
+        if (col === "changed_by_user_id")
+          throw new BadRequestError("FK inválida: changed_by_user_id no existe.");
         throw new BadRequestError("FK inválida en status_history.");
       }
 
@@ -80,12 +74,7 @@ export class StatusHistoryService {
   }
 
   static async findById(id: number) {
-    const row = await StatusHistory.findByPk(id, {
-      include: [
-        { model: Ticket, as: "ticket" },
-        { model: User, as: "changedByUser" },
-      ],
-    });
+    const row = await StatusHistory.scope("withRelations").findByPk(id);
     if (!row) throw new NotFoundError(`Historial con id ${id} no encontrado.`);
     return row;
   }
@@ -105,27 +94,21 @@ export class StatusHistoryService {
         order = "ASC",
       } = params;
 
-      const where: any = {};
-      if (ticketId) where.ticket_id = ticketId;
-      if (changedBy) where.changed_by_user_id = changedBy;
-      if (oldStatus) where.old_status = oldStatus;
-      if (newStatus) where.new_status = newStatus;
+      const scopes: any[] = ["withChangedByUser"]; 
 
-      if (from || to) {
-        where.changed_at = {};
-        if (from) where.changed_at[Op.gte] = from;
-        if (to) where.changed_at[Op.lte] = to;
-      }
+      if (ticketId) scopes.push({ method: ["byTicket", ticketId] });
+      if (changedBy) scopes.push({ method: ["byUser", changedBy] });
+      if (oldStatus) scopes.push({ method: ["oldStatus", oldStatus] });
+      if (newStatus) scopes.push({ method: ["newStatus", newStatus] });
+      if (from || to) scopes.push({ method: ["between", from ?? null, to ?? null] });
 
       const sortCol = SORT_MAP[sort] ?? "changed_at";
       const sortDir = order === "DESC" ? "DESC" : "ASC";
+      scopes.push({ method: ["orderBy", sortCol, sortDir] });
 
-      return await StatusHistory.findAndCountAll({
-        where,
-        include: [{ model: User, as: "changedByUser" }],
+      return await StatusHistory.scope(scopes).findAndCountAll({
         limit,
         offset,
-        order: [[sortCol, sortDir]],
       });
     } catch {
       throw new InternalServerError("Error al obtener el historial de estados.");

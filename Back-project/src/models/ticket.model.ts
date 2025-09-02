@@ -1,4 +1,11 @@
-import { DataTypes, Model, Optional, ModelStatic } from "sequelize";
+import {
+  DataTypes,
+  Model,
+  Optional,
+  ModelStatic,
+  Op,
+} from "sequelize";
+import type { FindOptions, Order } from "sequelize";
 import { sequelize } from "../config/sequelize";
 import { TicketStatus } from "../enums/ticketStatus.enum";
 import { TicketPriority } from "../enums/ticketPriority.enum";
@@ -29,6 +36,9 @@ type TicketCreationAttributes = Optional<
   | "createdAt"
   | "updatedAt"
 >;
+
+const ORDERABLE_COLUMNS = ["titulo", "status", "priority", "createdAt"] as const;
+export type TicketOrderableCol = typeof ORDERABLE_COLUMNS[number];
 
 class Ticket
   extends Model<TicketAttributes, TicketCreationAttributes>
@@ -63,7 +73,7 @@ class Ticket
     Ticket.belongsTo(models.Department, {
       foreignKey: "department_id",
       as: "department",
-      onDelete: "RESTRICT", 
+      onDelete: "RESTRICT",
     });
     Ticket.belongsTo(models.Ticket, {
       foreignKey: "parent_ticket_id",
@@ -71,6 +81,7 @@ class Ticket
       onDelete: "SET NULL",
     });
 
+    // hasMany
     Ticket.hasMany(models.Comment, {
       foreignKey: "ticket_id",
       as: "comments",
@@ -94,19 +105,58 @@ class Ticket
     Ticket.hasMany(models.Notification, {
       foreignKey: "ticket_id",
       as: "notifications",
-      onDelete: "SET NULL", 
+      onDelete: "SET NULL",
     });
   }
 
   static initScopes() {
+    // Tickets abiertos
     Ticket.addScope("open", {
       where: { status: TicketStatus.Abierto },
     });
+
+    // Por departamento
     Ticket.addScope("byDepartment", (department_id: number) => ({
       where: { department_id },
     }));
+
+    // Búsqueda por texto
+    Ticket.addScope(
+      "search",
+      (q: string): FindOptions<TicketAttributes> => {
+        const s = q?.trim();
+        if (!s) return {};
+        return {
+          where: {
+            [Op.or]: [
+              { titulo: { [Op.iLike]: `%${s}%` } },
+              { description: { [Op.iLike]: `%${s}%` } },
+            ],
+          },
+        };
+      }
+    );
+
+    // Más recientes primero
     Ticket.addScope("recent", {
-      order: [["createdAt", "DESC"]],
+      order: [["createdAt", "DESC"]] as Order,
+    });
+
+    // Orden genérico
+    Ticket.addScope(
+      "orderBy",
+      (col: TicketOrderableCol, dir: "ASC" | "DESC" = "ASC"): FindOptions<TicketAttributes> => ({
+        order: [[col, dir]] as Order,
+      })
+    );
+
+    // Include básicos
+    Ticket.addScope("withBasics", {
+      include: [
+        { model: sequelize.models.Device, as: "device" },
+        { model: sequelize.models.User, as: "assignedUser" },
+        { model: sequelize.models.Department, as: "department" },
+      ],
     });
   }
 }
@@ -151,7 +201,8 @@ Ticket.init(
     department_id: {
       type: DataTypes.INTEGER,
       allowNull: false,
-      references: { model: "departments", key: "department_id" },
+      // OJO: Department PK = "id"
+      references: { model: "departments", key: "id" },
     },
     parent_ticket_id: {
       type: DataTypes.UUID,
@@ -175,6 +226,8 @@ Ticket.init(
   }
 );
 
+// Registrar scopes
 Ticket.initScopes?.();
 
 export default Ticket;
+export { ORDERABLE_COLUMNS };

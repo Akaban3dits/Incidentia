@@ -1,13 +1,21 @@
-import { DataTypes, Model, Optional, ModelStatic } from "sequelize";
+import {
+  DataTypes,
+  Model,
+  Optional,
+  ModelStatic,
+  Op,
+  FindOptions,
+  Order,
+} from "sequelize";
 import { sequelize } from "../config/sequelize";
 
 interface AttachmentAttributes {
-  attachment_id: string; 
+  attachment_id: string;
   file_path: string;
   uploaded_at: Date;
   is_image: boolean;
   original_filename: string;
-  ticket_id?: string | null; 
+  ticket_id?: string | null;
   comment_id?: string | null;
   createdAt?: Date;
   updatedAt?: Date;
@@ -17,6 +25,9 @@ type AttachmentCreationAttributes = Optional<
   AttachmentAttributes,
   "attachment_id" | "ticket_id" | "comment_id" | "createdAt" | "updatedAt"
 >;
+
+const ORDERABLE_COLS = ["uploaded_at", "createdAt", "original_filename"] as const;
+type OrderableCol = typeof ORDERABLE_COLS[number];
 
 class Attachment
   extends Model<AttachmentAttributes, AttachmentCreationAttributes>
@@ -34,8 +45,79 @@ class Attachment
   public readonly updatedAt!: Date;
 
   public static associate(models: { [key: string]: ModelStatic<Model> }): void {
-    Attachment.belongsTo(models.Ticket, { foreignKey: "ticket_id" });
-    Attachment.belongsTo(models.Comment, { foreignKey: "comment_id" });
+    Attachment.belongsTo(models.Ticket, {
+      foreignKey: "ticket_id",
+      as: "ticket",
+      onDelete: "CASCADE",
+    });
+    Attachment.belongsTo(models.Comment, {
+      foreignKey: "comment_id",
+      as: "comment",
+      onDelete: "CASCADE",
+    });
+  }
+
+  static initScopes() {
+    Attachment.addScope(
+      "byTicket",
+      (ticket_id: string): FindOptions<AttachmentAttributes> => ({
+        where: { ticket_id },
+      })
+    );
+
+    Attachment.addScope(
+      "byComment",
+      (comment_id: string): FindOptions<AttachmentAttributes> => ({
+        where: { comment_id },
+      })
+    );
+
+    Attachment.addScope(
+      "isImage",
+      (flag: boolean): FindOptions<AttachmentAttributes> => ({
+        where: { is_image: !!flag },
+      })
+    );
+
+    Attachment.addScope(
+      "uploadedBetween",
+      (from?: Date | string, to?: Date | string): FindOptions<AttachmentAttributes> => {
+        const where: any = {};
+        if (from || to) {
+          where.uploaded_at = {};
+          if (from) where.uploaded_at[Op.gte] = from;
+          if (to) where.uploaded_at[Op.lte] = to;
+        }
+        return { where };
+      }
+    );
+
+    Attachment.addScope(
+      "search",
+      (q: string): FindOptions<AttachmentAttributes> => ({
+        where: {
+          [Op.or]: [
+            { original_filename: { [Op.iLike]: `%${q}%` } },
+            { file_path: { [Op.iLike]: `%${q}%` } },
+          ],
+        },
+      })
+    );
+
+    Attachment.addScope(
+      "orderBy",
+      (col: OrderableCol, dir: "ASC" | "DESC" = "DESC"): FindOptions => ({
+        order: [[col, dir]] as Order,
+      })
+    );
+
+    Attachment.addScope("withTicket", {
+      include: [{ model: sequelize.models.Ticket, as: "ticket" }],
+    });
+
+    Attachment.addScope("withComment", {
+      include: [{ model: sequelize.models.Comment, as: "comment" }],
+    });
   }
 }
 
@@ -84,7 +166,27 @@ Attachment.init(
     modelName: "Attachment",
     tableName: "attachments",
     timestamps: true,
+    indexes: [
+      { fields: ["ticket_id"] },
+      { fields: ["comment_id"] },
+      { fields: ["uploaded_at"] },
+      { fields: ["is_image"] },
+      { fields: ["createdAt"] },
+    ],
+    validate: {
+      ticketOrCommentExclusive(this: Attachment) {
+        const hasTicket = !!this.ticket_id;
+        const hasComment = !!this.comment_id;
+        if ((hasTicket && hasComment) || (!hasTicket && !hasComment)) {
+          throw new Error(
+            "El adjunto debe asociarse exactamente a un ticket O a un comentario (exclusivo)."
+          );
+        }
+      },
+    },
   }
 );
+
+Attachment.initScopes?.();
 
 export default Attachment;

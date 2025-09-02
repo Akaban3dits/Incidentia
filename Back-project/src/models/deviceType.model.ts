@@ -1,4 +1,12 @@
-import { DataTypes, Model, Optional, ModelStatic } from "sequelize";
+import {
+  DataTypes,
+  Model,
+  Optional,
+  ModelStatic,
+  Op,
+  FindOptions,
+  Order,
+} from "sequelize";
 import { sequelize } from "../config/sequelize";
 
 interface DeviceTypeAttributes {
@@ -12,6 +20,9 @@ type DeviceTypeCreationAttributes = Optional<
   "device_type_id" | "type_code"
 >;
 
+const ORDERABLE_COLUMNS = ["type_name", "type_code"] as const;
+export type DeviceTypeOrderableCol = typeof ORDERABLE_COLUMNS[number];
+
 class DeviceType
   extends Model<DeviceTypeAttributes, DeviceTypeCreationAttributes>
   implements DeviceTypeAttributes
@@ -24,6 +35,44 @@ class DeviceType
     DeviceType.hasMany(models.Device, {
       foreignKey: "device_type_id",
       as: "devices",
+    });
+  }
+
+  static initScopes() {
+    DeviceType.addScope(
+      "byName",
+      (name: string): FindOptions<DeviceTypeAttributes> => ({
+        where: { type_name: name },
+      })
+    );
+
+    DeviceType.addScope(
+      "byCode",
+      (code: string): FindOptions<DeviceTypeAttributes> => ({
+        where: { type_code: code },
+      })
+    );
+
+    DeviceType.addScope(
+      "search",
+      (q: string): FindOptions<DeviceTypeAttributes> => ({
+        where: {
+          [Op.or]: [
+            { type_name: { [Op.iLike]: `%${q}%` } },
+            { type_code: { [Op.iLike]: `%${q}%` } },
+          ],
+        },
+      })
+    );
+
+    DeviceType.addScope(
+      "orderBy",
+      (col: DeviceTypeOrderableCol, dir: "ASC" | "DESC" = "ASC"): FindOptions =>
+        ({ order: [[col, dir]] as Order })
+    );
+
+    DeviceType.addScope("withDevices", {
+      include: [{ model: sequelize.models.Device, as: "devices" }],
     });
   }
 }
@@ -51,7 +100,13 @@ DeviceType.init(
     modelName: "DeviceType",
     tableName: "device_types",
     timestamps: false,
+    indexes: [
+      { unique: true, fields: ["type_name"] },
+      { unique: true, fields: ["type_code"] },
+    ],
   }
 );
+
+DeviceType.initScopes?.();
 
 export default DeviceType;

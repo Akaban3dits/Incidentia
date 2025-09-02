@@ -1,5 +1,5 @@
-import { Op } from "sequelize";
 import Department from "../models/department.model";
+import { Op } from "sequelize";
 import {
   ConflictError,
   InternalServerError,
@@ -12,11 +12,12 @@ import {
 } from "../types/department.types";
 
 const norm = (s: string) => s.trim().replace(/\s+/g, " ");
+const SORT_MAP: Record<string, "name" | "id"> = { name: "name", id: "id" };
 
 export class DepartmentService {
   static async createDepartment(payload: CreateDepartmentInput) {
     try {
-      const name = norm(payload.name); 
+      const name = norm(payload.name);
 
       const existing = await Department.findOne({ where: { name } });
       if (existing) throw new ConflictError("El nombre del departamento ya existe.");
@@ -42,19 +43,29 @@ export class DepartmentService {
         search = "",
         limit = 20,
         offset = 0,
-        sort = "name",    
-        order = "ASC",    
-      } = params;
+        sort = "name",
+        order = "ASC", 
+        withUsers = false,
+        withTickets = false,
+      } = params as ListDepartmentsParams & {
+        withUsers?: boolean;
+        withTickets?: boolean;
+      };
 
-      const whereClause = search
-        ? { name: { [Op.iLike]: `%${search}%` } }
-        : {};
+      const scopes: any[] = [];
 
-      return await Department.findAndCountAll({
-        where: whereClause,
+      if (search.trim()) scopes.push({ method: ["search", search.trim()] });
+
+      const sortCol = SORT_MAP[sort] ?? "name";
+      const sortDir = order === "DESC" ? "DESC" : "ASC";
+      scopes.push({ method: ["orderBy", sortCol, sortDir] });
+
+      if (withUsers) scopes.push("withUsers");
+      if (withTickets) scopes.push("withTickets");
+
+      return await Department.scope(scopes).findAndCountAll({
         limit,
         offset,
-        order: [[sort, order]],
       });
     } catch {
       throw new InternalServerError("Error al obtener los departamentos.");
@@ -64,8 +75,7 @@ export class DepartmentService {
   static async updateDepartment(id: number, payload: UpdateDepartmentInput) {
     try {
       const department = await this.findById(id);
-
-      const name = norm(payload.name); 
+      const name = norm(payload.name);
 
       const existing = await Department.findOne({
         where: { name, id: { [Op.ne]: id } },
@@ -91,7 +101,9 @@ export class DepartmentService {
     } catch (error: any) {
       if (error instanceof NotFoundError) throw error;
       if (error?.name === "SequelizeForeignKeyConstraintError") {
-        throw new ConflictError("No se puede eliminar el departamento porque tiene registros dependientes.");
+        throw new ConflictError(
+          "No se puede eliminar el departamento porque tiene registros dependientes."
+        );
       }
       throw new InternalServerError("Error al eliminar el departamento.");
     }

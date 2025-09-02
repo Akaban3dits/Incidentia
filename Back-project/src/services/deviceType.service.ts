@@ -4,7 +4,6 @@ import {
   ConflictError,
   InternalServerError,
   NotFoundError,
-  BadRequestError,
 } from "../utils/error";
 import {
   CreateDeviceTypeInput,
@@ -16,7 +15,10 @@ const normName = (s: string) => s.trim().replace(/\s+/g, " ");
 const normCode = (s?: string | null) =>
   s === undefined ? undefined : (s === null ? null : s.trim().toUpperCase());
 
-const SORT_MAP: Record<string, string> = { name: "type_name", code: "type_code" };
+const SORT_MAP: Record<string, "type_name" | "type_code"> = {
+  name: "type_name",
+  code: "type_code",
+};
 
 export class DeviceTypeService {
   static async create(payload: CreateDeviceTypeInput) {
@@ -24,10 +26,11 @@ export class DeviceTypeService {
       const name = normName(payload.name);
       const code = normCode(payload.code) ?? null;
 
-      const byName = await DeviceType.findOne({ where: { type_name: name } });
+      const byName = await DeviceType.scope({ method: ["byName", name] }).findOne();
       if (byName) throw new ConflictError("Ya existe un tipo con ese nombre.");
+
       if (code) {
-        const byCode = await DeviceType.findOne({ where: { type_code: code } });
+        const byCode = await DeviceType.scope({ method: ["byCode", code] }).findOne();
         if (byCode) throw new ConflictError("Ya existe un tipo con ese código.");
       }
 
@@ -57,30 +60,22 @@ export class DeviceTypeService {
         order = "ASC",
       } = params;
 
-      const where = search.trim()
-        ? {
-            [Op.or]: [
-              { type_name: { [Op.iLike]: `%${search.trim()}%` } },
-              { type_code: { [Op.iLike]: `%${search.trim()}%` } },
-            ],
-          }
-        : {};
+      const scopes: any[] = [];
+      if (search.trim()) scopes.push({ method: ["search", search.trim()] });
 
       const sortCol = SORT_MAP[sort] ?? "type_name";
       const sortDir = order === "DESC" ? "DESC" : "ASC";
+      scopes.push({ method: ["orderBy", sortCol, sortDir] });
 
-      return await DeviceType.findAndCountAll({
-        where,
+      return await DeviceType.scope(scopes).findAndCountAll({
         limit,
         offset,
-        order: [[sortCol, sortDir]],
       });
     } catch {
       throw new InternalServerError("Error al obtener los tipos de dispositivo.");
     }
   }
 
-  // UPDATE
   static async update(id: number, payload: UpdateDeviceTypeInput) {
     try {
       const row = await this.findById(id);
@@ -95,7 +90,7 @@ export class DeviceTypeService {
       }
 
       if (Object.prototype.hasOwnProperty.call(payload, "code")) {
-        const code = normCode(payload.code) ?? null; // puede venir null explícito para limpiar
+        const code = normCode(payload.code) ?? null;
         if (code) {
           const byCode = await DeviceType.findOne({
             where: { type_code: code, device_type_id: { [Op.ne]: Number(id) } },

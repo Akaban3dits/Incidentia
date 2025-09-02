@@ -21,6 +21,7 @@ const SALT_ROUNDS = Number(process.env.SALT_ROUNDS ?? 10);
 const norm = (s: string) => s.trim().replace(/\s+/g, " ");
 
 export class UserService {
+  // Crear usuario (email/password)
   static async createUser(data: CreateUserInput) {
     try {
       const email = data.email?.trim().toLowerCase();
@@ -46,8 +47,8 @@ export class UserService {
         status: UserStatus.Activo,
       });
 
-      const safe = await User.findByPk(user.user_id);
-      return safe!;
+      // defaultScope oculta password
+      return await User.findByPk(user.user_id);
     } catch (error: any) {
       if (error instanceof BadRequestError || error instanceof ConflictError) throw error;
       if (error?.name === "SequelizeUniqueConstraintError") {
@@ -57,6 +58,7 @@ export class UserService {
     }
   }
 
+  // Buscar por ID (defaultScope)
   static async findById(id: string) {
     if (!id) throw new BadRequestError("El ID del usuario es obligatorio.");
     const user = await User.findByPk(id);
@@ -64,6 +66,16 @@ export class UserService {
     return user;
   }
 
+  // Login helper: obtener con password
+  static async findByEmailWithPassword(email: string) {
+    const user = await User.scope("withPassword").findOne({
+      where: { email: email.toLowerCase().trim() },
+    });
+    if (!user) throw new NotFoundError("Usuario no encontrado.");
+    return user;
+  }
+
+  // Google: find or create (vincula por email si ya existe)
   static async findOrCreateGoogleUser(profile: GoogleProfile) {
     try {
       const provider = "google";
@@ -106,8 +118,9 @@ export class UserService {
     }
   }
 
-  static async findOneByRole(role: UserRole) {
-    return User.findOne({ where: { role } });
+  static async findOneByRole(role: UserRole, onlyActive = false) {
+    const scopes = onlyActive ? ["active"] : [];
+    return User.scope(scopes).findOne({ where: { role } });
   }
 
   static async createAdminFromGoogleProfile(profile: GoogleProfile) {
@@ -137,6 +150,7 @@ export class UserService {
     }
   }
 
+  // Completar/actualizar perfil
   static async completeUserProfile(userId: string, profileData: UpdateUserProfileInput) {
     try {
       const user = await this.findById(userId);
@@ -187,5 +201,40 @@ export class UserService {
 
       throw new InternalServerError("Error al completar el perfil.");
     }
+  }
+
+  static async listDeptAdmins(department_id: number) {
+    const admins = await User.scope([
+      "active",
+      { method: ["byDepartment", department_id] },
+      { method: ["byRole", UserRole.Administrador] },
+    ]).findAll({ attributes: ["user_id", "first_name", "last_name", "email"] });
+
+    return admins;
+  }
+
+  static async searchUsers(opts: {
+    q?: string;
+    department_id?: number;
+    role?: UserRole;
+    status?: UserStatus;
+    page?: number;
+    pageSize?: number;
+    recent?: boolean;
+  }) {
+    const scopes: any[] = [];
+    if (opts.q) scopes.push({ method: ["search", opts.q] });
+    if (opts.department_id !== undefined) scopes.push({ method: ["byDepartment", opts.department_id] });
+    if (opts.role) scopes.push({ method: ["byRole", opts.role] });
+    if (opts.status) scopes.push({ method: ["byStatus", opts.status] });
+    if (opts.recent) scopes.push("recent");
+
+    const page = Math.max(1, opts.page ?? 1);
+    const pageSize = Math.max(1, Math.min(200, opts.pageSize ?? 20));
+
+    return User.scope(scopes).findAndCountAll({
+      limit: pageSize,
+      offset: (page - 1) * pageSize,
+    });
   }
 }

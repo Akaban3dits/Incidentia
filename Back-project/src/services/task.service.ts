@@ -1,5 +1,5 @@
 import { Op } from "sequelize";
-import Task from "../models/task.model";
+import Task, { TaskOrderableCol } from "../models/task.model";
 import Ticket from "../models/ticket.model";
 import {
   BadRequestError,
@@ -12,7 +12,7 @@ import {
   ListTasksParams,
 } from "../types/task.types";
 
-const SORT_MAP: Record<string, string> = {
+const SORT_MAP: Record<string, TaskOrderableCol> = {
   createdAt: "createdAt",
   updatedAt: "updatedAt",
   completed_at: "completed_at",
@@ -71,29 +71,22 @@ export class TaskService {
         order = "ASC",
       } = params;
 
-      const where: any = {};
-      if (ticketId) where.ticket_id = ticketId;
-      if (typeof isCompleted === "boolean") where.is_completed = isCompleted;
+      const scopes: any[] = ["withTicket"];
 
-      if (search.trim()) {
-        where.task_description = { [Op.iLike]: `%${search.trim()}%` };
-      }
-
-      if (completedFrom || completedTo) {
-        where.completed_at = {};
-        if (completedFrom) where.completed_at[Op.gte] = completedFrom;
-        if (completedTo) where.completed_at[Op.lte] = completedTo;
-      }
+      if (ticketId) scopes.push({ method: ["byTicket", ticketId] });
+      if (typeof isCompleted === "boolean")
+        scopes.push({ method: ["completed", isCompleted] });
+      if (search.trim()) scopes.push({ method: ["search", search] });
+      if (completedFrom || completedTo)
+        scopes.push({ method: ["completedBetween", completedFrom ?? null, completedTo ?? null] });
 
       const sortCol = SORT_MAP[sort] ?? "createdAt";
       const sortDir = order === "DESC" ? "DESC" : "ASC";
+      scopes.push({ method: ["orderBy", sortCol, sortDir] });
 
-      return await Task.findAndCountAll({
-        where,
-        include: [{ model: Ticket, as: "ticket" }],
+      return await Task.scope(scopes).findAndCountAll({
         limit,
         offset,
-        order: [[sortCol, sortDir]],
       });
     } catch {
       throw new InternalServerError("Error al obtener las tareas.");

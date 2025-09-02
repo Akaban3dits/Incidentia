@@ -1,7 +1,5 @@
-import { Op } from "sequelize";
 import Comment from "../models/comment.model";
 import Ticket from "../models/ticket.model";
-import User from "../models/user.model";
 import {
   BadRequestError,
   InternalServerError,
@@ -12,10 +10,10 @@ import {
   UpdateCommentInput,
   ListCommentsParams,
 } from "../types/comment.types";
-import { NotificationService } from "./notification.service";              
-import { NotificationType } from "../enums/notificationType.enum";         
+import { NotificationService } from "./notification.service";
+import { NotificationType } from "../enums/notificationType.enum";
 
-const SORT_MAP: Record<string, string> = {
+const SORT_MAP: Record<string, "createdAt" | "updatedAt"> = {
   createdAt: "createdAt",
   updatedAt: "updatedAt",
 };
@@ -73,12 +71,7 @@ export class CommentService {
         });
       }
 
-      return await Comment.findByPk(row.comment_id, {
-        include: [
-          { model: User },   
-          { model: Ticket }, 
-        ],
-      });
+      return await Comment.scope(["withAuthor", "withTicket"]).findByPk(row.comment_id);
     } catch (error: any) {
       if (error instanceof BadRequestError) throw error;
 
@@ -95,9 +88,7 @@ export class CommentService {
   }
 
   static async findById(id: string) {
-    const row = await Comment.findByPk(id, {
-      include: [{ model: User }, { model: Ticket }],
-    });
+    const row = await Comment.scope(["withAuthor", "withTicket"]).findByPk(id);
     if (!row) throw new NotFoundError(`Comentario con id ${id} no encontrado.`);
     return row;
   }
@@ -115,28 +106,25 @@ export class CommentService {
         order = "ASC",
       } = params;
 
-      const where: any = {};
-      if (ticketId) where.ticket_id = ticketId;
+      const scopes: any[] = [];
+
+      if (ticketId) scopes.push({ method: ["byTicket", ticketId] });
 
       if (parentId !== undefined) {
-        where.parent_comment_id = parentId;
+        scopes.push({ method: ["byParent", parentId] });
       } else if (topLevel) {
-        where.parent_comment_id = null;
+        scopes.push("topLevel");
       }
 
-      if (search.trim()) {
-        where.comment_text = { [Op.iLike]: `%${search.trim()}%` };
-      }
+      if (search.trim()) scopes.push({ method: ["search", search.trim()] });
 
       const sortCol = SORT_MAP[sort] ?? "createdAt";
       const sortDir = order === "DESC" ? "DESC" : "ASC";
+      scopes.push({ method: ["orderBy", sortCol, sortDir] }, "withAuthor");
 
-      return await Comment.findAndCountAll({
-        where,
-        include: [{ model: User }],
+      return await Comment.scope(scopes).findAndCountAll({
         limit,
         offset,
-        order: [[sortCol, sortDir]],
       });
     } catch {
       throw new InternalServerError("Error al obtener los comentarios.");
