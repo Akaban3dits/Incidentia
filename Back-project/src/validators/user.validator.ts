@@ -1,113 +1,75 @@
-import { body } from "express-validator";
-import { UserRole } from "../enums/userRole.enum";
-import { UserStatus } from "../enums/userStatus.enum";
-import { CompanyType } from "../enums/companyType.enum"; 
+// src/validators/user.validator.ts
+import { body, param } from "express-validator";
+import { CompanyType } from "../enums/companyType.enum";
+
+const collapseSpaces = (v: any) =>
+  typeof v === "string" ? v.replace(/\s+/g, " ") : v;
+
+const sanitizePhone = (v: any) =>
+  typeof v === "string" ? v.replace(/[\s()-]/g, "") : v;
+
+export const userIdParam = [
+  param("userId")
+    .isUUID()
+    .withMessage("El ID de usuario debe ser un UUID válido"),
+];
 
 export const userCreateValidator = [
   body("first_name")
-    .optional()
-    .isString()
     .trim()
+    .customSanitizer(collapseSpaces)
     .isLength({ min: 1, max: 50 })
-    .withMessage("El nombre debe tener entre 1 y 50 caracteres"),
+    .withMessage("first_name es requerido (1-50 caracteres)"),
 
   body("last_name")
-    .optional()
-    .isString()
     .trim()
+    .customSanitizer(collapseSpaces)
     .isLength({ min: 1, max: 50 })
-    .withMessage("El apellido debe tener entre 1 y 50 caracteres"),
+    .withMessage("last_name es requerido (1-50 caracteres)"),
 
   body("email")
-    .optional()
-    .isEmail()
+    .trim()
     .normalizeEmail()
-    .withMessage("El correo electrónico debe ser válido"),
+    .isEmail()
+    .withMessage("email inválido"),
 
   body("password")
-    .optional()
-    .if(body("provider").not().exists())
-    .isLength({ min: 8, max: 20 })
-    .withMessage("La contraseña debe tener entre 8 y 20 caracteres"),
+    .trim()
+    .isLength({ min: 6, max: 100 })
+    .withMessage("password debe tener entre 6 y 100 caracteres"),
 
   body("phone_number")
     .optional()
-    .isString()
-    .trim()
-    .isLength({ min: 10, max: 15 })
-    .withMessage("El número de teléfono debe tener entre 10 y 15 caracteres"),
+    .customSanitizer(sanitizePhone)
+    .matches(/^\+?[0-9]{7,20}$/)
+    .withMessage("phone_number inválido, solo dígitos y opcional '+' inicial"),
 ];
 
-export const userUpdateValidator = [
-  body("first_name")
-    .optional()
-    .isString()
-    .trim()
-    .isLength({ min: 1, max: 50 })
-    .withMessage("El nombre debe tener entre 1 y 50 caracteres"),
-
-  body("last_name")
-    .optional()
-    .isString()
-    .trim()
-    .isLength({ min: 1, max: 50 })
-    .withMessage("El apellido debe tener entre 1 y 50 caracteres"),
-
-  body("email")
-    .optional()
-    .isEmail()
-    .normalizeEmail()
-    .withMessage("El correo electrónico debe ser válido"),
-
-  body("password")
-    .optional()
-    .if(body("provider").not().exists())
-    .isLength({ min: 8, max: 20 })
-    .withMessage("La contraseña debe tener entre 8 y 20 caracteres"),
-
-  body("status")
-    .optional()
-    .isIn(Object.values(UserStatus))
-    .withMessage("El estado de usuario no es válido"),
-
-  body("company")
-    .optional()
-    .isIn(Object.values(CompanyType))
-    .withMessage("El tipo de empresa no es válido"),
-
-  body("role")
-    .optional()
-    .isIn(Object.values(UserRole))
-    .withMessage("El rol de usuario no es válido"),
+export const userCompleteProfileValidator = [
+  param("userId")
+    .isUUID()
+    .withMessage("El ID de usuario debe ser un UUID válido"),
 
   body("phone_number")
     .optional()
-    .isString()
-    .trim()
-    .isLength({ min: 10, max: 15 })
-    .withMessage("El número de teléfono debe tener entre 10 y 15 caracteres"),
-];
+    .customSanitizer(sanitizePhone)
+    .matches(/^\+?[0-9]{7,20}$/)
+    .withMessage("phone_number inválido, solo dígitos y opcional '+' inicial"),
 
-export const completeUserProfileValidator = [
-  body("phone_number")
-    .optional()
-    .isString()
-    .trim()
-    .matches(/^\+?[\d\s\-\(\)]{10,15}$/)
-    .withMessage("Formato de teléfono inválido"),
-  
   body("password")
     .optional()
-    .isLength({ min: 8, max: 20 })
-    .withMessage("La contraseña debe tener entre 8 y 20 caracteres"),
-  
+    .trim()
+    .isLength({ min: 6, max: 100 })
+    .withMessage("password debe tener entre 6 y 100 caracteres"),
+
   body("department_id")
-    .optional()
+    .customSanitizer((v) => (v === "null" ? null : v))
+    .optional({ nullable: true })
     .isInt({ min: 1 })
-    .withMessage("ID de departamento debe ser un número positivo"),
-  
+    .withMessage("department_id debe ser null o un entero >= 1"),
+
   body("company")
     .optional()
     .isIn(Object.values(CompanyType))
-    .withMessage("Tipo de empresa no válido")
+    .withMessage("company inválido"),
 ];

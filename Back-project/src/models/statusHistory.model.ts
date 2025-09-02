@@ -1,11 +1,12 @@
 import { DataTypes, Model, Optional, ModelStatic } from "sequelize";
 import { sequelize } from "../config/sequelize";
+import { TicketStatus } from "../enums/ticketStatus.enum";
 
 interface StatusHistoryAttributes {
   history_id: number;
   changed_at: Date;
-  old_status: string;
-  new_status: string;
+  old_status: TicketStatus;
+  new_status: TicketStatus;
   ticket_id: string; 
   changed_by_user_id: string; 
   createdAt?: Date;
@@ -14,7 +15,7 @@ interface StatusHistoryAttributes {
 
 type StatusHistoryCreationAttributes = Optional<
   StatusHistoryAttributes,
-  "history_id" | "createdAt" | "updatedAt"
+  "history_id" | "createdAt" | "updatedAt" | "changed_at"
 >;
 
 class StatusHistory
@@ -23,8 +24,8 @@ class StatusHistory
 {
   public history_id!: number;
   public changed_at!: Date;
-  public old_status!: string;
-  public new_status!: string;
+  public old_status!: TicketStatus;
+  public new_status!: TicketStatus;
   public ticket_id!: string;
   public changed_by_user_id!: string;
 
@@ -32,8 +33,16 @@ class StatusHistory
   public readonly updatedAt!: Date;
 
   public static associate(models: { [key: string]: ModelStatic<Model> }): void {
-    StatusHistory.belongsTo(models.Ticket, { foreignKey: "ticket_id" });
-    StatusHistory.belongsTo(models.User, { foreignKey: "changed_by_user_id", as: "changedByUser" });
+    StatusHistory.belongsTo(models.Ticket, {
+      foreignKey: "ticket_id",
+      as: "ticket",
+      onDelete: "CASCADE",
+    });
+    StatusHistory.belongsTo(models.User, {
+      foreignKey: "changed_by_user_id",
+      as: "changedByUser",
+      onDelete: "SET NULL", 
+    });
   }
 }
 
@@ -47,13 +56,14 @@ StatusHistory.init(
     changed_at: {
       type: DataTypes.DATE,
       allowNull: false,
+      defaultValue: DataTypes.NOW, 
     },
     old_status: {
-      type: DataTypes.STRING(50),
+      type: DataTypes.ENUM(...Object.values(TicketStatus)),
       allowNull: false,
     },
     new_status: {
-      type: DataTypes.STRING(50),
+      type: DataTypes.ENUM(...Object.values(TicketStatus)),
       allowNull: false,
     },
     ticket_id: {
@@ -76,8 +86,13 @@ StatusHistory.init(
   {
     sequelize,
     modelName: "StatusHistory",
-    tableName: "status_history",
+    tableName: "status_histories",
     timestamps: true,
+    indexes: [
+      { fields: ["ticket_id"] },
+      { fields: ["changed_by_user_id"] },
+      { fields: ["changed_at"] },
+    ],
   }
 );
 

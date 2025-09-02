@@ -2,31 +2,43 @@ import { DataTypes, Model, Optional, ModelStatic } from "sequelize";
 import { sequelize } from "../config/sequelize";
 
 interface DepartmentAttributes {
-  department_id: number;
-  department_name: string;
+  id: number;
+  name: string;
 }
 
-type DepartmentCreationAttributes = Optional<DepartmentAttributes, "department_id">;
+type DepartmentCreationAttributes = Optional<DepartmentAttributes, "id">;
 
 class Department
   extends Model<DepartmentAttributes, DepartmentCreationAttributes>
   implements DepartmentAttributes
 {
-  public department_id!: number;
-  public department_name!: string;
+  public id!: number;
+  public name!: string;
 
+  public static associate(models: { [key: string]: ModelStatic<Model> }): void {
+    Department.hasMany(models.User, {
+      foreignKey: "department_id",
+      as: "users",
+    });
+
+    Department.hasMany(models.Ticket, {
+      foreignKey: "department_id",
+      as: "tickets",
+    });
+  }
 }
 
 Department.init(
   {
-    department_id: {
+    id: {
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
     },
-    department_name: {
+    name: {
       type: DataTypes.STRING(100),
       allowNull: false,
+      unique: true,
     },
   },
   {

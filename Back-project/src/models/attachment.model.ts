@@ -7,14 +7,15 @@ interface AttachmentAttributes {
   uploaded_at: Date;
   is_image: boolean;
   original_filename: string;
-  ticket_id: string; 
+  ticket_id?: string | null; 
+  comment_id?: string | null;
   createdAt?: Date;
   updatedAt?: Date;
 }
 
 type AttachmentCreationAttributes = Optional<
   AttachmentAttributes,
-  "attachment_id" | "createdAt" | "updatedAt"
+  "attachment_id" | "ticket_id" | "comment_id" | "createdAt" | "updatedAt"
 >;
 
 class Attachment
@@ -26,13 +27,15 @@ class Attachment
   public uploaded_at!: Date;
   public is_image!: boolean;
   public original_filename!: string;
-  public ticket_id!: string;
+  public ticket_id!: string | null;
+  public comment_id!: string | null;
 
   public readonly createdAt!: Date;
   public readonly updatedAt!: Date;
 
   public static associate(models: { [key: string]: ModelStatic<Model> }): void {
     Attachment.belongsTo(models.Ticket, { foreignKey: "ticket_id" });
+    Attachment.belongsTo(models.Comment, { foreignKey: "comment_id" });
   }
 }
 
@@ -61,10 +64,18 @@ Attachment.init(
     },
     ticket_id: {
       type: DataTypes.UUID,
-      allowNull: false,
+      allowNull: true,
       references: {
         model: "tickets",
         key: "ticket_id",
+      },
+    },
+    comment_id: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: {
+        model: "comments",
+        key: "comment_id",
       },
     },
   },
