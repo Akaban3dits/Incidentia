@@ -1,27 +1,28 @@
 import { body, param, query } from "express-validator";
 
+const collapseSpaces = (v: string) => v.replace(/\s+/g, " ");
+
 export const departmentCreateValidator = [
   body("name")
+    .isString().withMessage("El nombre del departamento debe ser texto")
     .trim()
-    .isString()
-    .withMessage("El nombre del departamento debe ser una cadena de texto")
+    .customSanitizer(collapseSpaces)
     .isLength({ min: 1, max: 100 })
-    .withMessage("El nombre del departamento debe tener entre 1 y 100 caracteres"),
+    .withMessage("El nombre del departamento debe tener entre 1 y 100 caracteres")
+    .matches(/[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/)
+    .withMessage("El nombre debe contener al menos una letra (no puede ser solo números)"),
 ];
 
 export const departmentUpdateValidator = [
-  param("id")
-    .isInt()
-    .withMessage("El ID del departamento debe ser un número entero válido"),
-
   body("name")
+    .isString().withMessage("El nombre del departamento debe ser texto")
     .trim()
-    .isString()
-    .withMessage("El nombre del departamento debe ser una cadena de texto")
+    .customSanitizer(collapseSpaces)
     .isLength({ min: 1, max: 100 })
-    .withMessage("El nombre del departamento debe tener entre 1 y 100 caracteres"),
+    .withMessage("El nombre del departamento debe tener entre 1 y 100 caracteres")
+    .matches(/[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/)
+    .withMessage("El nombre debe contener al menos una letra (no puede ser solo números)"),
 ];
-
 export const departmentListValidator = [
   query("search")
     .optional()
@@ -43,4 +44,11 @@ export const departmentListValidator = [
     .optional()
     .isIn(["ASC", "DESC"])
     .withMessage("order debe ser ASC o DESC"),
+];
+
+export const departmentIdParam = [
+  param("id")
+    .isInt({ min: 1 })
+    .withMessage("El ID del departamento debe ser un entero válido")
+    .toInt(),
 ];

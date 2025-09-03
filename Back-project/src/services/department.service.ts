@@ -16,15 +16,26 @@ const SORT_MAP: Record<string, "name" | "id"> = { name: "name", id: "id" };
 
 export class DepartmentService {
   static async createDepartment(payload: CreateDepartmentInput) {
+    const name = norm(payload.name);
+
+    const existing = await Department.findOne({ where: { name } });
+    if (existing)
+      throw new ConflictError("El nombre del departamento ya existe.");
+
     try {
-      const name = norm(payload.name);
-
-      const existing = await Department.findOne({ where: { name } });
-      if (existing) throw new ConflictError("El nombre del departamento ya existe.");
-
-      return await Department.create({ name });
+      const created = await Department.create({ name });
+      return created;
     } catch (error: any) {
+      console.error(
+        "[createDepartment]",
+        error?.name,
+        error?.original?.code,
+        error?.message
+      );
       if (error?.name === "SequelizeUniqueConstraintError") {
+        throw new ConflictError("El nombre del departamento ya existe.");
+      }
+      if (error?.original?.code === "23505") {
         throw new ConflictError("El nombre del departamento ya existe.");
       }
       throw new InternalServerError("Error al crear el departamento.");
@@ -33,7 +44,8 @@ export class DepartmentService {
 
   static async findById(id: number) {
     const department = await Department.findByPk(id);
-    if (!department) throw new NotFoundError(`Departamento con id ${id} no encontrado.`);
+    if (!department)
+      throw new NotFoundError(`Departamento con id ${id} no encontrado.`);
     return department;
   }
 
@@ -44,7 +56,7 @@ export class DepartmentService {
         limit = 20,
         offset = 0,
         sort = "name",
-        order = "ASC", 
+        order = "ASC",
         withUsers = false,
         withTickets = false,
       } = params as ListDepartmentsParams & {
@@ -73,26 +85,28 @@ export class DepartmentService {
   }
 
   static async updateDepartment(id: number, payload: UpdateDepartmentInput) {
-    try {
-      const department = await this.findById(id);
-      const name = norm(payload.name);
+  const department = await this.findById(id); 
+  const name = norm(payload.name);
 
-      const existing = await Department.findOne({
-        where: { name, id: { [Op.ne]: id } },
-      });
-      if (existing) throw new ConflictError("El nombre del departamento ya existe.");
-
-      department.name = name;
-      await department.save();
-      return department;
-    } catch (error: any) {
-      if (error?.name === "SequelizeUniqueConstraintError") {
-        throw new ConflictError("El nombre del departamento ya existe.");
-      }
-      if (error instanceof NotFoundError) throw error;
-      throw new InternalServerError("Error al actualizar el departamento.");
-    }
+  const existing = await Department.findOne({
+    where: { name, id: { [Op.ne]: id } },
+  });
+  if (existing) {
+    throw new ConflictError("El nombre del departamento ya existe.");
   }
+
+  try {
+    department.name = name;
+    await department.save();
+    return department;
+  } catch (error: any) {
+    if (error?.name === "SequelizeUniqueConstraintError" || error?.original?.code === "23505") {
+      throw new ConflictError("El nombre del departamento ya existe.");
+    }
+    throw new InternalServerError("Error al actualizar el departamento.");
+  }
+}
+
 
   static async deleteDepartment(id: number) {
     try {

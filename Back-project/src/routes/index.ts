@@ -1,13 +1,9 @@
 import { Router } from "express";
-import authRoutes from "./auth.routes";
-import userRoutes from "./users.routes";
-import departmentRoutes from "./departments.routes";
+import DepartmentRoutes from "./departments.routes";
 
 const router = Router();
 
-router.use("/auth", authRoutes);
-router.use("/users", userRoutes);
-router.use("/departments", departmentRoutes);
+router.use("/departments", DepartmentRoutes);
 
 
 export default router;
