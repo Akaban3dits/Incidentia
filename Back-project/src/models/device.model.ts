@@ -1,4 +1,12 @@
-import { DataTypes, Model, Optional, ModelStatic } from "sequelize";
+import {
+  DataTypes,
+  Model,
+  Optional,
+  ModelStatic,
+  Op,
+  FindOptions,
+  Order,
+} from "sequelize";
 import { sequelize } from "../config/sequelize";
 
 interface DeviceAttributes {
@@ -9,7 +17,13 @@ interface DeviceAttributes {
 
 type DeviceCreationAttributes = Optional<DeviceAttributes, "device_id">;
 
-class Device extends Model<DeviceAttributes, DeviceCreationAttributes> implements DeviceAttributes {
+const ORDERABLE_COLUMNS = ["device_name", "device_id"] as const;
+type DeviceOrderableCol = typeof ORDERABLE_COLUMNS[number];
+
+class Device
+  extends Model<DeviceAttributes, DeviceCreationAttributes>
+  implements DeviceAttributes
+{
   public device_id!: number;
   public device_name!: string;
   public device_type_id!: number;
@@ -23,6 +37,33 @@ class Device extends Model<DeviceAttributes, DeviceCreationAttributes> implement
     Device.hasMany(models.Ticket, {
       foreignKey: "device_id",
       as: "tickets",
+    });
+  }
+
+  static initScopes() {
+    Device.addScope(
+      "byTypeId",
+      (device_type_id: number): FindOptions<DeviceAttributes> => ({
+        where: { device_type_id },
+      })
+    );
+
+    Device.addScope(
+      "search",
+      (q: string): FindOptions<DeviceAttributes> => ({
+        where: { device_name: { [Op.iLike]: `%${q}%` } },
+      })
+    );
+
+    Device.addScope(
+      "orderBy",
+      (col: DeviceOrderableCol, dir: "ASC" | "DESC" = "ASC"): FindOptions => ({
+        order: [[col, dir]] as Order,
+      })
+    );
+
+    Device.addScope("withType", {
+      include: [{ model: sequelize.models.DeviceType, as: "deviceType" }],
     });
   }
 }
@@ -42,7 +83,7 @@ Device.init(
       type: DataTypes.INTEGER,
       allowNull: false,
       references: {
-        model: "device_types", 
+        model: "device_types",
         key: "device_type_id",
       },
     },
@@ -52,7 +93,13 @@ Device.init(
     modelName: "Device",
     tableName: "devices",
     timestamps: false,
+    indexes: [
+      { fields: ["device_type_id"] },
+      { fields: ["device_name"] },
+    ],
   }
 );
+
+Device.initScopes?.();
 
 export default Device;

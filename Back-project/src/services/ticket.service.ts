@@ -1,9 +1,4 @@
-// src/services/ticket.service.ts
-import { Op } from "sequelize";
 import Ticket from "../models/ticket.model";
-import Device from "../models/device.model";
-import User from "../models/user.model";
-import Department from "../models/department.model";
 import {
   InternalServerError,
   NotFoundError,
@@ -21,7 +16,7 @@ import { NotificationService } from "./notification.service";
 import { NotificationType } from "../enums/notificationType.enum";
 import { UserRole } from "../enums/userRole.enum";
 
-const SORT_MAP: Record<string, string> = {
+const SORT_MAP: Record<string, "titulo" | "status" | "priority" | "createdAt"> = {
   titulo: "titulo",
   status: "status",
   priority: "priority",
@@ -75,13 +70,7 @@ export class TicketService {
         }
       }
 
-      return await Ticket.findByPk(row.ticket_id, {
-        include: [
-          { model: Device, as: "device" },
-          { model: User, as: "assignedUser" },
-          { model: Department, as: "department" },
-        ],
-      });
+      return await Ticket.scope(["withBasics"]).findByPk(row.ticket_id);
     } catch (error: any) {
       if (error?.name === "SequelizeForeignKeyConstraintError") {
         const col = error?.fields ? Object.keys(error.fields)[0] : undefined;
@@ -100,13 +89,7 @@ export class TicketService {
   }
 
   static async findById(id: string) {
-    const row = await Ticket.findByPk(id, {
-      include: [
-        { model: Device, as: "device" },
-        { model: User, as: "assignedUser" },
-        { model: Department, as: "department" },
-      ],
-    });
+    const row = await Ticket.scope(["withBasics"]).findByPk(id);
     if (!row) throw new NotFoundError(`Ticket con id ${id} no encontrado.`);
     return row;
   }
@@ -121,29 +104,17 @@ export class TicketService {
         order = "ASC",
       } = params;
 
-      const where =
-        search.trim()
-          ? {
-              [Op.or]: [
-                { titulo: { [Op.iLike]: `%${search.trim()}%` } },
-                { description: { [Op.iLike]: `%${search.trim()}%` } },
-              ],
-            }
-          : {};
-
+      const scopes: any[] = ["withBasics"];
+      if (search.trim()) {
+        scopes.push({ method: ["search", search.trim()] });
+      }
       const sortCol = SORT_MAP[sort] ?? "createdAt";
       const sortDir = order === "DESC" ? "DESC" : "ASC";
+      scopes.push({ method: ["orderBy", sortCol, sortDir] });
 
-      return await Ticket.findAndCountAll({
-        where,
-        include: [
-          { model: Device, as: "device" },
-          { model: User, as: "assignedUser" },
-          { model: Department, as: "department" },
-        ],
+      return await Ticket.scope(scopes).findAndCountAll({
         limit,
         offset,
-        order: [[sortCol, sortDir]],
       });
     } catch {
       throw new InternalServerError("Error al obtener los tickets.");
@@ -158,9 +129,7 @@ export class TicketService {
         payload.parent_ticket_id !== undefined &&
         payload.parent_ticket_id === id
       ) {
-        throw new BadRequestError(
-          "parent_ticket_id no puede ser el mismo ticket."
-        );
+        throw new BadRequestError("parent_ticket_id no puede ser el mismo ticket.");
       }
 
       const prevStatus = row.status;
@@ -168,26 +137,16 @@ export class TicketService {
       const prevPriority = row.priority;
       const prevDeptId = row.department_id;
 
-      if (payload.titulo !== undefined)
-        row.titulo = payload.titulo.trim();
-      if (payload.description !== undefined)
-        row.description = payload.description.trim();
-      if (payload.status !== undefined)
-        row.status = payload.status as TicketStatus;
-      if (payload.priority !== undefined)
-        row.priority = (payload.priority ?? null) as TicketPriority | null;
-      if (payload.device_id !== undefined)
-        row.device_id = payload.device_id ?? null;
-      if (payload.assigned_user_id !== undefined)
-        row.assigned_user_id = payload.assigned_user_id ?? null;
-      if (payload.department_id !== undefined)
-        row.department_id = payload.department_id;
-      if (payload.parent_ticket_id !== undefined)
-        row.parent_ticket_id = payload.parent_ticket_id ?? null;
+      if (payload.titulo !== undefined) row.titulo = payload.titulo.trim();
+      if (payload.description !== undefined) row.description = payload.description.trim();
+      if (payload.status !== undefined) row.status = payload.status as TicketStatus;
+      if (payload.priority !== undefined) row.priority = (payload.priority ?? null) as TicketPriority | null;
+      if (payload.device_id !== undefined) row.device_id = payload.device_id ?? null;
+      if (payload.assigned_user_id !== undefined) row.assigned_user_id = payload.assigned_user_id ?? null;
+      if (payload.department_id !== undefined) row.department_id = payload.department_id;
+      if (payload.parent_ticket_id !== undefined) row.parent_ticket_id = payload.parent_ticket_id ?? null;
 
-      const statusChanged =
-        payload.status !== undefined && payload.status !== prevStatus;
-
+      const statusChanged = payload.status !== undefined && payload.status !== prevStatus;
       if (statusChanged) {
         if (payload.status === TicketStatus.Cerrado) {
           row.closed_at = new Date();
@@ -211,17 +170,12 @@ export class TicketService {
       const assigneeChanged =
         payload.assigned_user_id !== undefined &&
         payload.assigned_user_id !== prevAssignee;
-
       if (assigneeChanged && row.assigned_user_id) {
-        await NotificationService.notifyAssignee(
-          row.ticket_id,
-          row.assigned_user_id
-        );
+        await NotificationService.notifyAssignee(row.ticket_id, row.assigned_user_id);
       }
 
       const priorityChanged =
         payload.priority !== undefined && payload.priority !== prevPriority;
-
       if (priorityChanged && row.priority === TicketPriority.Critica) {
         const [deptAdmins, sistemasAdmins] = await Promise.all([
           NotificationService.recipientsDeptAdmins(row.department_id),
@@ -280,7 +234,6 @@ export class TicketService {
       const deptChanged =
         payload.department_id !== undefined &&
         payload.department_id !== prevDeptId;
-
       if (deptChanged) {
         const newAdmins = await NotificationService.recipientsDeptAdmins(row.department_id);
         if (newAdmins.length) {

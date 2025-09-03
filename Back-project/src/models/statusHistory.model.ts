@@ -1,4 +1,12 @@
-import { DataTypes, Model, Optional, ModelStatic } from "sequelize";
+import {
+  DataTypes,
+  Model,
+  Optional,
+  ModelStatic,
+  Op,
+  FindOptions,
+  Order,
+} from "sequelize";
 import { sequelize } from "../config/sequelize";
 import { TicketStatus } from "../enums/ticketStatus.enum";
 
@@ -7,8 +15,8 @@ interface StatusHistoryAttributes {
   changed_at: Date;
   old_status: TicketStatus;
   new_status: TicketStatus;
-  ticket_id: string; 
-  changed_by_user_id: string; 
+  ticket_id: string;
+  changed_by_user_id: string;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -17,6 +25,9 @@ type StatusHistoryCreationAttributes = Optional<
   StatusHistoryAttributes,
   "history_id" | "createdAt" | "updatedAt" | "changed_at"
 >;
+
+const ORDERABLE_COLUMNS = ["changed_at", "createdAt", "updatedAt"] as const;
+export type StatusHistoryOrderableCol = typeof ORDERABLE_COLUMNS[number];
 
 class StatusHistory
   extends Model<StatusHistoryAttributes, StatusHistoryCreationAttributes>
@@ -41,7 +52,91 @@ class StatusHistory
     StatusHistory.belongsTo(models.User, {
       foreignKey: "changed_by_user_id",
       as: "changedByUser",
-      onDelete: "SET NULL", 
+      onDelete: "SET NULL",
+    });
+  }
+
+  static initScopes() {
+    StatusHistory.addScope(
+      "byTicket",
+      (ticket_id: string): FindOptions<StatusHistoryAttributes> => ({
+        where: { ticket_id },
+      })
+    );
+
+    StatusHistory.addScope(
+      "byUser",
+      (user_id: string): FindOptions<StatusHistoryAttributes> => ({
+        where: { changed_by_user_id: user_id },
+      })
+    );
+
+    StatusHistory.addScope(
+      "between",
+      (
+        from?: Date | string | null,
+        to?: Date | string | null
+      ): FindOptions<StatusHistoryAttributes> => {
+        if (!from && !to) return {};
+        const where: any = {};
+        where.changed_at = {};
+        if (from) where.changed_at[Op.gte] = from;
+        if (to) where.changed_at[Op.lte] = to;
+        return { where };
+      }
+    );
+
+    StatusHistory.addScope(
+      "oldStatus",
+      (s: TicketStatus): FindOptions<StatusHistoryAttributes> => ({
+        where: { old_status: s },
+      })
+    );
+
+    StatusHistory.addScope(
+      "newStatus",
+      (s: TicketStatus): FindOptions<StatusHistoryAttributes> => ({
+        where: { new_status: s },
+      })
+    );
+
+    StatusHistory.addScope(
+      "transition",
+      (
+        from: TicketStatus,
+        to: TicketStatus
+      ): FindOptions<StatusHistoryAttributes> => ({
+        where: { old_status: from, new_status: to },
+      })
+    );
+
+    StatusHistory.addScope("recent", {
+      order: [["changed_at", "DESC"]] as Order,
+    });
+
+    StatusHistory.addScope(
+      "orderBy",
+      (
+        col: StatusHistoryOrderableCol,
+        dir: "ASC" | "DESC" = "ASC"
+      ): FindOptions<StatusHistoryAttributes> => ({
+        order: [[col, dir]] as Order,
+      })
+    );
+
+    StatusHistory.addScope("withTicket", {
+      include: [{ model: sequelize.models.Ticket, as: "ticket" }],
+    });
+
+    StatusHistory.addScope("withChangedByUser", {
+      include: [{ model: sequelize.models.User, as: "changedByUser" }],
+    });
+
+    StatusHistory.addScope("withRelations", {
+      include: [
+        { model: sequelize.models.Ticket, as: "ticket" },
+        { model: sequelize.models.User, as: "changedByUser" },
+      ],
     });
   }
 }
@@ -56,7 +151,7 @@ StatusHistory.init(
     changed_at: {
       type: DataTypes.DATE,
       allowNull: false,
-      defaultValue: DataTypes.NOW, 
+      defaultValue: DataTypes.NOW,
     },
     old_status: {
       type: DataTypes.ENUM(...Object.values(TicketStatus)),
@@ -96,4 +191,7 @@ StatusHistory.init(
   }
 );
 
+StatusHistory.initScopes?.();
+
 export default StatusHistory;
+export { ORDERABLE_COLUMNS };

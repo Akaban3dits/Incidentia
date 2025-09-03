@@ -1,4 +1,4 @@
-import { DataTypes, Model, Optional, ModelStatic } from "sequelize";
+import { DataTypes, Model, Optional, ModelStatic, Op } from "sequelize";
 import { sequelize } from "../config/sequelize";
 import { UserRole } from "../enums/userRole.enum";
 import { UserStatus } from "../enums/userStatus.enum";
@@ -16,7 +16,7 @@ interface UserAttributes {
   role: UserRole;
   provider?: string | null;
   provider_id?: string | null;
-  department_id?: number | null;   // FK -> departments.id
+  department_id?: number | null;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -54,7 +54,6 @@ class User
   public readonly updatedAt!: Date;
 
   public static associate(models: { [key: string]: ModelStatic<Model> }): void {
-
     User.belongsTo(models.Department, {
       foreignKey: "department_id",
       as: "department",
@@ -86,6 +85,46 @@ class User
       });
     }
   }
+
+  static initScopes() {
+    User.addScope("active", {
+      where: { status: UserStatus.Activo },
+    });
+
+    User.addScope("byDepartment", (department_id: number) => ({
+      where: { department_id },
+    }));
+
+    User.addScope("byRole", (role: UserRole) => ({
+      where: { role },
+    }));
+
+    User.addScope("byCompany", (company: CompanyType) => ({
+      where: { company },
+    }));
+
+    User.addScope("byStatus", (status: UserStatus) => ({
+      where: { status },
+    }));
+
+    User.addScope("search", (q: string) => ({
+      where: {
+        [Op.or]: [
+          { first_name: { [Op.iLike]: `%${q}%` } },
+          { last_name: { [Op.iLike]: `%${q}%` } },
+          { email: { [Op.iLike]: `%${q}%` } },
+        ],
+      },
+    }));
+
+    User.addScope("withPassword", {
+      attributes: { include: ["password"] },
+    });
+
+    User.addScope("recent", {
+      order: [["createdAt", "DESC"]],
+    });
+  }
 }
 
 User.init(
@@ -106,7 +145,7 @@ User.init(
     email: {
       type: DataTypes.STRING(100),
       allowNull: false,
-      unique: true, 
+      unique: true,
     },
     password: {
       type: DataTypes.STRING(255),
@@ -139,10 +178,7 @@ User.init(
     department_id: {
       type: DataTypes.INTEGER,
       allowNull: true,
-      references: {
-        model: "departments",
-        key: "id",
-      },
+      references: { model: "departments", key: "id" },
     },
   },
   {
@@ -151,7 +187,7 @@ User.init(
     tableName: "users",
     timestamps: true,
     defaultScope: {
-      attributes: { exclude: ["password"] }, 
+      attributes: { exclude: ["password"] },
     },
     indexes: [
       { unique: true, fields: ["email"] },
@@ -163,5 +199,7 @@ User.init(
     ],
   }
 );
+
+(User as any).initScopes?.();
 
 export default User;

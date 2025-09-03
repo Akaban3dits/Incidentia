@@ -1,145 +1,66 @@
 import { Request, Response, NextFunction } from "express";
 import { DepartmentService } from "../services/department.service";
-import { InternalServerError, NotFoundError } from "../utils/error";
 
 export class DepartmentController {
-  /**
-   * Crea un nuevo departamento.
-   * - Extrae el nombre del departamento del body.
-   * - Llama al servicio para crear el registro.
-   * - Devuelve 201 con los datos del departamento creado.
-   * - Maneja errores controlados y errores inesperados.
-   */
-  static async createDepartment(
-    req: Request,
-    res: Response,
-    next: NextFunction
-  ) {
-    const { name } = req.body; // Nombre enviado por el cliente
-
+  static async create(req: Request, res: Response, next: NextFunction) {
     try {
-      const department = await DepartmentService.createDepartment(name);
-
-      res.status(201).json({
-        message: "Departamento creado exitosamente",
-        department,
-      });
-    } catch (error) {
-      if (error instanceof NotFoundError) {
-        return next(error);
-      }
-      next(new InternalServerError("Error al crear el departamento"));
+      const row = await DepartmentService.createDepartment(req.body);
+      return res.status(201).json(row);
+    } catch (err) {
+      next(err);
     }
   }
 
-  /**
-   * Obtiene todos los departamentos con soporte de búsqueda y paginación.
-   * - Extrae search, limit y offset desde query.
-   * - Llama al servicio que devuelve { rows, count }.
-   * - Devuelve los resultados en un objeto JSON.
-   */
-  static async getDepartments(req: Request, res: Response, next: NextFunction) {
+  static async getOne(req: Request, res: Response, next: NextFunction) {
     try {
-      const search = req.query.search as string | undefined;
-      const limit = parseInt(req.query.limit as string) || 20;
-      const offset = parseInt(req.query.offset as string) || 0;
-
-      const departments = await DepartmentService.findAll({ search, limit, offset });
-
-      res.status(200).json({
-        message: "Departamentos obtenidos exitosamente",
-        departments,
-      });
-    } catch (error) {
-      if (error instanceof NotFoundError) {
-        return next(error);
-      }
-      next(new InternalServerError("Error al obtener los departamentos"));
+      const id = Number(req.params.id);
+      const row = await DepartmentService.findById(id);
+      return res.json(row);
+    } catch (err) {
+      next(err);
     }
   }
 
-  /**
-   * Obtiene un departamento por su ID.
-   * - Extrae el id desde params.
-   * - Llama al servicio para buscar el departamento.
-   * - Devuelve 200 con el departamento encontrado.
-   * - Si no existe, propaga NotFoundError.
-   */
-  static async getDepartmentById(
-    req: Request,
-    res: Response,
-    next: NextFunction
-  ) {
-    const { id } = req.params;
-
+  static async list(req: Request, res: Response, next: NextFunction) {
     try {
-      const department = await DepartmentService.findById(id);
+      const { search, limit, offset, sort, order, withUsers, withTickets } = req.query;
 
-      res.status(200).json({
-        message: "Departamento obtenido exitosamente",
-        department,
+      const result = await DepartmentService.findAll({
+        search: (search as string) ?? "",
+        limit: limit ? Number(limit) : undefined,
+        offset: offset ? Number(offset) : undefined,
+        sort: (sort as "name") ?? "name",
+        order: (order as "ASC" | "DESC") ?? "ASC",
+        ...(withUsers ? { withUsers: String(withUsers) === "true" } : {}),
+        ...(withTickets ? { withTickets: String(withTickets) === "true" } : {}),
       });
-    } catch (error) {
-      if (error instanceof NotFoundError) {
-        return next(error);
-      }
-      next(new InternalServerError("Error al obtener el departamento"));
+
+      return res.json({
+        count: result.count,
+        rows: result.rows,
+      });
+    } catch (err) {
+      next(err);
     }
   }
 
-  /**
-   * Actualiza un departamento existente.
-   * - Extrae id desde params y nuevo nombre desde body.
-   * - Llama al servicio para actualizar el registro.
-   * - Devuelve 200 con los datos actualizados.
-   * - Maneja errores de existencia y otros errores inesperados.
-   */
-  static async updateDepartment(
-    req: Request,
-    res: Response,
-    next: NextFunction
-  ) {
-    const { id } = req.params;
-    const { name } = req.body;
-
+  static async update(req: Request, res: Response, next: NextFunction) {
     try {
-      const updatedDepartment = await DepartmentService.updateDepartment(id, name);
-
-      res.status(200).json({
-        message: "Departamento actualizado exitosamente",
-        department: updatedDepartment,
-      });
-    } catch (error) {
-      if (error instanceof NotFoundError) {
-        return next(error);
-      } 
-      next(new InternalServerError("Error al actualizar el departamento"));
+      const id = Number(req.params.id);
+      const row = await DepartmentService.updateDepartment(id, req.body);
+      return res.json(row);
+    } catch (err) {
+      next(err);
     }
   }
 
-  /** 
-   * Elimina un departamento.
-   * - Extrae id desde params.
-   * - Llama al servicio para eliminar el registro.
-   * - Devuelve 204 si la eliminación fue exitosa.
-   * - Captura errores de inexistencia y conflictos por dependencias.
-   */
-  static async deleteDepartment(
-    req: Request,
-    res: Response,
-    next: NextFunction
-  ) {
-    const { id } = req.params;
-
+  static async remove(req: Request, res: Response, next: NextFunction) {
     try {
+      const id = Number(req.params.id);
       await DepartmentService.deleteDepartment(id);
-
-      res.status(204).send(); // No devuelve contenido
-    } catch (error) {
-      if (error instanceof NotFoundError) {
-        return next(error);
-      }
-      next(new InternalServerError("Error al eliminar el departamento"));
+      return res.status(204).send();
+    } catch (err) {
+      next(err);
     }
   }
 }

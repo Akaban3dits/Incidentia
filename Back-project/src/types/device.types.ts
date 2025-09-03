@@ -14,4 +14,5 @@ export interface ListDevicesParams {
   offset?: number;
   sort?: "name" | "id";
   order?: "ASC" | "DESC";
+  deviceTypeId?: number;
 }

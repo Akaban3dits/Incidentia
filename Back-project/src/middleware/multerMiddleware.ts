@@ -6,68 +6,70 @@ import sharp from "sharp";
 import crypto from "crypto";
 import { BadRequestError } from "../utils/error";
 
-const createDirectory = (folderPath: string) => {
-  if (!fs.existsSync(folderPath)) {
-    fs.mkdirSync(folderPath, { recursive: true });
-  }
+const ensureDir = (dir: string) => {
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 };
 
-const multerStorage = multer.memoryStorage();
-
-const multerFilter = (
-  _req: Request,
-  file: Express.Multer.File,
-  cb: multer.FileFilterCallback
-) => {
-  if (!file.mimetype.startsWith("image/")) {
-    return cb(new BadRequestError("Solo se permiten archivos de imagen"));
-  }
-  cb(null, true);
-};
+const storage = multer.memoryStorage();
 
 const upload = multer({
-  storage: multerStorage,
-  fileFilter: multerFilter,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
-}).single("image");
+  storage,
+  limits: { fileSize: 20 * 1024 * 1024, files: 1 },
+}).single("file");
 
-const uploadSingleImageMiddleware = (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
+export const uploadAttachment = (req: Request, res: Response, next: NextFunction) => {
   upload(req, res, async (err: any) => {
     if (err) {
       if (err.code === "LIMIT_FILE_SIZE") {
-        return next(new BadRequestError("La imagen no puede superar 5MB"));
+        return next(new BadRequestError("El archivo no puede superar 20MB"));
       }
-      return next(new BadRequestError(err.message));
+      return next(new BadRequestError(err.message || "Error al subir el archivo"));
     }
 
     if (!req.file) return next();
 
     try {
+      const file = req.file;
       const now = new Date();
-      const year = now.getFullYear().toString();
-      const month = (now.getMonth() + 1).toString().padStart(2, "0");
-      const day = now.getDate().toString().padStart(2, "0");
+      const year = String(now.getFullYear());
+      const month = String(now.getMonth() + 1).padStart(2, "0");
+      const day = String(now.getDate()).padStart(2, "0");
 
-      const uploadDir = path.join(process.cwd(), "uploads", year, month, day);
-      createDirectory(uploadDir);
+      const destDir = path.join(process.cwd(), "uploads", year, month, day);
+      ensureDir(destDir);
 
-      const uniqueCode = crypto.randomBytes(6).toString("hex");
-      const newFileName = `${uniqueCode}.webp`;
-      const outputPath = path.join(uploadDir, newFileName);
+      const unique = crypto.randomBytes(8).toString("hex");
+      const isImage = file.mimetype.startsWith("image/");
 
-      await sharp(req.file.buffer).webp({ quality: 80 }).toFile(outputPath);
+      let fileName: string;
+      let absPath: string;
 
-      req.body.image_url = `/uploads/${year}/${month}/${day}/${newFileName}`;
+      if (isImage) {
+        fileName = `${unique}.webp`;
+        absPath = path.join(destDir, fileName);
+        await sharp(file.buffer).webp({ quality: 80 }).toFile(absPath);
+      } else {
+        const origExt = path.extname(file.originalname) || "";
+        fileName = `${unique}${origExt}`;
+        absPath = path.join(destDir, fileName);
+        fs.writeFileSync(absPath, file.buffer);
+      }
 
-      next();
-    } catch (error) {
-      next(error);
+      const publicPath = `/uploads/${year}/${month}/${day}/${fileName}`;
+
+      req.body.file_path = publicPath;
+      req.body.original_filename = file.originalname;
+      req.body.is_image = isImage;
+      if (!req.body.uploaded_at) req.body.uploaded_at = now.toISOString();
+
+      if (req.body.ticket_id === "") req.body.ticket_id = null;
+      if (req.body.comment_id === "") req.body.comment_id = null;
+
+      return next();
+    } catch (e: any) {
+      return next(new BadRequestError(e?.message || "Error al procesar el archivo"));
     }
   });
 };
 
-export default uploadSingleImageMiddleware;
+export default uploadAttachment;

@@ -1,11 +1,9 @@
-// src/services/notification.service.ts
 import { Op, Transaction } from "sequelize";
 import { sequelize } from "../config/sequelize";
 
 import Notification from "../models/notification.model";
 import NotificationUser from "../models/notificationUser.model";
 import User from "../models/user.model";
-import Ticket from "../models/ticket.model";
 import Department from "../models/department.model";
 
 import {
@@ -24,7 +22,7 @@ import { NotificationType } from "../enums/notificationType.enum";
 import { UserRole } from "../enums/userRole.enum";
 import { UserStatus } from "../enums/userStatus.enum";
 
-const SORT_MAP: Record<string, string> = {
+const SORT_MAP: Record<string, "createdAt" | "updatedAt" | "notification_id"> = {
   createdAt: "createdAt",
   updatedAt: "updatedAt",
   notification_id: "notification_id",
@@ -35,9 +33,7 @@ export class NotificationService {
     payload: CreateNotificationInput,
     trx?: Transaction
   ) {
-    if (!payload.recipients?.length) {
-      return null;
-    }
+    if (!payload.recipients?.length) return null;
 
     const t = trx ?? (await sequelize.transaction());
     try {
@@ -67,9 +63,9 @@ export class NotificationService {
 
       if (!trx) await t.commit();
 
-      return await Notification.findByPk(notif.notification_id, {
-        include: [{ model: User, as: "recipients" }, { model: Ticket, as: "ticket" }],
-      });
+      return await Notification.scope("withRelations").findByPk(
+        notif.notification_id
+      );
     } catch (error: any) {
       if (!trx) await t.rollback();
       if (error?.name === "SequelizeForeignKeyConstraintError") {
@@ -82,9 +78,7 @@ export class NotificationService {
   }
 
   static async findById(id: number) {
-    const row = await Notification.findByPk(id, {
-      include: [{ model: User, as: "recipients" }, { model: Ticket, as: "ticket" }],
-    });
+    const row = await Notification.scope("withRelations").findByPk(id);
     if (!row) throw new NotFoundError(`Notificación con id ${id} no encontrada.`);
     return row;
   }
@@ -103,25 +97,20 @@ export class NotificationService {
         order = "DESC",
       } = params;
 
-      const where: any = {};
-      if (ticketId) where.ticket_id = ticketId;
-      if (type) where.type = type;
-      if (search.trim()) where.message = { [Op.iLike]: `%${search.trim()}%` };
-      if (from || to) {
-        where.createdAt = {};
-        if (from) where.createdAt[Op.gte] = from;
-        if (to) where.createdAt[Op.lte] = to;
-      }
+      const scopes: any[] = ["withRecipients"];
+
+      if (ticketId) scopes.push({ method: ["byTicket", ticketId] });
+      if (type) scopes.push({ method: ["byType", type] });
+      if (search.trim()) scopes.push({ method: ["searchMessage", search.trim()] });
+      if (from || to) scopes.push({ method: ["betweenCreated", from ?? null, to ?? null] });
 
       const sortCol = SORT_MAP[sort] ?? "createdAt";
       const sortDir = order === "ASC" ? "ASC" : "DESC";
+      scopes.push({ method: ["orderBy", sortCol, sortDir] });
 
-      return await Notification.findAndCountAll({
-        where,
-        include: [{ model: User, as: "recipients" }],
+      return await Notification.scope(scopes).findAndCountAll({
         limit,
         offset,
-        order: [[sortCol, sortDir]],
       });
     } catch {
       throw new InternalServerError("Error al obtener notificaciones.");
@@ -144,35 +133,19 @@ export class NotificationService {
         order = "DESC",
       } = params;
 
-      const throughWhere: any = { user_id: userId };
-      if (unreadOnly) throughWhere.read_at = null;
-      if (typeof hidden === "boolean") throughWhere.hidden = hidden;
+      const scopes: any[] = [{ method: ["forRecipient", userId, unreadOnly, hidden] }];
 
-      const notifWhere: any = {};
-      if (type) notifWhere.type = type;
-      if (ticketId) notifWhere.ticket_id = ticketId;
-      if (from || to) {
-        notifWhere.createdAt = {};
-        if (from) notifWhere.createdAt[Op.gte] = from;
-        if (to) notifWhere.createdAt[Op.lte] = to;
-      }
+      if (type) scopes.push({ method: ["byType", type] });
+      if (ticketId) scopes.push({ method: ["byTicket", ticketId] });
+      if (from || to) scopes.push({ method: ["betweenCreated", from ?? null, to ?? null] });
 
       const sortCol = SORT_MAP[sort] ?? "createdAt";
       const sortDir = order === "ASC" ? "ASC" : "DESC";
+      scopes.push({ method: ["orderBy", sortCol, sortDir] });
 
-      return await Notification.findAndCountAll({
-        where: notifWhere,
-        include: [
-          {
-            model: User,
-            as: "recipients",
-            through: { where: throughWhere },
-            required: true, 
-          },
-        ],
+      return await Notification.scope(scopes).findAndCountAll({
         limit,
         offset,
-        order: [[sortCol, sortDir]],
       });
     } catch {
       throw new InternalServerError("Error al obtener notificaciones del usuario.");
@@ -213,63 +186,6 @@ export class NotificationService {
     return this.recipientsDeptAll(department_id, {
       roles: [UserRole.Administrador],
       onlyActive: true,
-    });
-  }
-
-  static async notifyTicketCreatedToDeptAdmins(
-    ticketId: string,
-    departmentId: number
-  ) {
-    const recipients = await this.recipientsDeptAdmins(departmentId);
-    if (!recipients.length) return null;
-    return this.createAndFanout({
-      type: NotificationType.Informacion,
-      message: `Nuevo ticket creado (${ticketId.substring(0, 8)}).`,
-      ticket_id: ticketId,
-      recipients,
-    });
-  }
-
-  static async notifyAssignee(ticketId: string, assigneeId?: string | null) {
-    if (!assigneeId) return null;
-    return this.createAndFanout({
-      type: NotificationType.Informacion,
-      message: `Has sido asignado como responsable del ticket ${ticketId.substring(
-        0,
-        8
-      )}.`,
-      ticket_id: ticketId,
-      recipients: [assigneeId],
-    });
-  }
-
-  static async notifyToDept(
-    department_id: number,
-    payload: { type: NotificationType; message: string; ticket_id?: string | null },
-    opts?: { onlyActive?: boolean; roles?: UserRole[]; excludeUserId?: string }
-  ) {
-    const recipients = await this.recipientsDeptAll(department_id, opts);
-    if (!recipients.length) return null;
-    return this.createAndFanout({
-      type: payload.type,
-      message: payload.message,
-      ticket_id: payload.ticket_id ?? null,
-      recipients,
-    });
-  }
-
-  static async notifyToDeptByName(
-    departmentName: string,
-    payload: { type: NotificationType; message: string; ticket_id?: string | null },
-    opts?: { onlyActive?: boolean; roles?: UserRole[]; excludeUserId?: string }
-  ) {
-    const recipients = await this.recipientsDeptAllByName(departmentName, opts);
-    if (!recipients.length) return null;
-    return this.createAndFanout({
-      type: payload.type,
-      message: payload.message,
-      ticket_id: payload.ticket_id ?? null,
-      recipients,
     });
   }
 }

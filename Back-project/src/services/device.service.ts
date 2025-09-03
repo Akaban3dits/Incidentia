@@ -1,4 +1,3 @@
-// src/services/device.service.ts
 import { Op } from "sequelize";
 import Device from "../models/device.model";
 import DeviceType from "../models/deviceType.model";
@@ -14,7 +13,10 @@ import {
   ListDevicesParams,
 } from "../types/device.types";
 
-const SORT_MAP: Record<string, string> = { name: "device_name", id: "device_id" };
+const SORT_MAP: Record<string, "device_name" | "device_id"> = {
+  name: "device_name",
+  id: "device_id",
+};
 const norm = (s: string) => s.trim().replace(/\s+/g, " ");
 
 export class DeviceService {
@@ -31,9 +33,7 @@ export class DeviceService {
         device_type_id: deviceTypeId,
       });
 
-      return await Device.findByPk(created.device_id, {
-        include: [{ model: DeviceType, as: "deviceType" }],
-      });
+      return await Device.scope("withType").findByPk(created.device_id);
     } catch (error: any) {
       if (error?.name === "SequelizeUniqueConstraintError") {
         throw new ConflictError("Ya existe un dispositivo con ese nombre.");
@@ -46,9 +46,7 @@ export class DeviceService {
   }
 
   static async findById(id: number) {
-    const row = await Device.findByPk(id, {
-      include: [{ model: DeviceType, as: "deviceType" }],
-    });
+    const row = await Device.scope("withType").findByPk(id);
     if (!row) throw new NotFoundError(`Dispositivo con id ${id} no encontrado.`);
     return row;
   }
@@ -61,21 +59,22 @@ export class DeviceService {
         offset = 0,
         sort = "name",
         order = "ASC",
+        deviceTypeId,
       } = params;
 
-      const where = search.trim()
-        ? { device_name: { [Op.iLike]: `%${search.trim()}%` } }
-        : {};
+      const scopes: any[] = ["withType"];
+
+      if (search.trim()) scopes.push({ method: ["search", search.trim()] });
+      if (typeof deviceTypeId === "number")
+        scopes.push({ method: ["byTypeId", deviceTypeId] });
 
       const sortCol = SORT_MAP[sort] ?? "device_name";
-      const sortDir = order === "DESC" ? "DESC" : "ASC"; 
+      const sortDir = order === "DESC" ? "DESC" : "ASC";
+      scopes.push({ method: ["orderBy", sortCol, sortDir] });
 
-      return await Device.findAndCountAll({
-        where,
-        include: [{ model: DeviceType, as: "deviceType" }],
+      return await Device.scope(scopes).findAndCountAll({
         limit,
         offset,
-        order: [[sortCol, sortDir]],
       });
     } catch {
       throw new InternalServerError("Error al obtener los dispositivos.");
@@ -100,7 +99,7 @@ export class DeviceService {
       }
 
       await row.save();
-      return await this.findById(row.device_id);
+      return await Device.scope("withType").findByPk(row.device_id);
     } catch (error: any) {
       if (error instanceof NotFoundError || error instanceof ConflictError) throw error;
       if (error?.name === "SequelizeUniqueConstraintError") {
