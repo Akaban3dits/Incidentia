@@ -22,22 +22,24 @@ const SORT_MAP: Record<string, "type_name" | "type_code"> = {
 
 export class DeviceTypeService {
   static async create(payload: CreateDeviceTypeInput) {
+    const name = normName(payload.name);
+    const code = normCode(payload.code) ?? null;
+
+    const byName = await DeviceType.scope({ method: ["byName", name] }).findOne();
+    if (byName) throw new ConflictError("Ya existe un tipo con ese nombre.");
+
+    if (code) {
+      const byCode = await DeviceType.scope({ method: ["byCode", code] }).findOne();
+      if (byCode) throw new ConflictError("Ya existe un tipo con ese código.");
+    }
+
     try {
-      const name = normName(payload.name);
-      const code = normCode(payload.code) ?? null;
-
-      const byName = await DeviceType.scope({ method: ["byName", name] }).findOne();
-      if (byName) throw new ConflictError("Ya existe un tipo con ese nombre.");
-
-      if (code) {
-        const byCode = await DeviceType.scope({ method: ["byCode", code] }).findOne();
-        if (byCode) throw new ConflictError("Ya existe un tipo con ese código.");
-      }
-
       return await DeviceType.create({ type_name: name, type_code: code });
     } catch (error: any) {
-      if (error instanceof ConflictError) throw error;
-      if (error?.name === "SequelizeUniqueConstraintError") {
+      if (
+        error?.name === "SequelizeUniqueConstraintError" ||
+        error?.original?.code === "23505"
+      ) {
         throw new ConflictError("El nombre o el código ya está en uso.");
       }
       throw new InternalServerError("Error al crear el tipo de dispositivo.");
@@ -77,34 +79,36 @@ export class DeviceTypeService {
   }
 
   static async update(id: number, payload: UpdateDeviceTypeInput) {
-    try {
-      const row = await this.findById(id);
+    const row = await this.findById(id);
 
-      if (payload.name !== undefined) {
-        const name = normName(payload.name);
-        const byName = await DeviceType.findOne({
-          where: { type_name: name, device_type_id: { [Op.ne]: Number(id) } },
+    if (payload.name !== undefined) {
+      const name = normName(payload.name);
+      const byName = await DeviceType.findOne({
+        where: { type_name: name, device_type_id: { [Op.ne]: Number(id) } },
+      });
+      if (byName) throw new ConflictError("Ya existe un tipo con ese nombre.");
+      row.type_name = name;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(payload, "code")) {
+      const code = normCode(payload.code) ?? null;
+      if (code) {
+        const byCode = await DeviceType.findOne({
+          where: { type_code: code, device_type_id: { [Op.ne]: Number(id) } },
         });
-        if (byName) throw new ConflictError("Ya existe un tipo con ese nombre.");
-        row.type_name = name;
+        if (byCode) throw new ConflictError("Ya existe un tipo con ese código.");
       }
+      row.type_code = code;
+    }
 
-      if (Object.prototype.hasOwnProperty.call(payload, "code")) {
-        const code = normCode(payload.code) ?? null;
-        if (code) {
-          const byCode = await DeviceType.findOne({
-            where: { type_code: code, device_type_id: { [Op.ne]: Number(id) } },
-          });
-          if (byCode) throw new ConflictError("Ya existe un tipo con ese código.");
-        }
-        row.type_code = code;
-      }
-
+    try {
       await row.save();
       return row;
     } catch (error: any) {
-      if (error instanceof NotFoundError || error instanceof ConflictError) throw error;
-      if (error?.name === "SequelizeUniqueConstraintError") {
+      if (
+        error?.name === "SequelizeUniqueConstraintError" ||
+        error?.original?.code === "23505"
+      ) {
         throw new ConflictError("El nombre o el código ya está en uso.");
       }
       throw new InternalServerError("Error al actualizar el tipo de dispositivo.");

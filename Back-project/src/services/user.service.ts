@@ -1,4 +1,3 @@
-// src/services/user.service.ts
 import bcrypt from "bcrypt";
 import { CompanyType } from "../enums/companyType.enum";
 import { UserRole } from "../enums/userRole.enum";
@@ -21,19 +20,21 @@ const SALT_ROUNDS = Number(process.env.SALT_ROUNDS ?? 10);
 const norm = (s: string) => s.trim().replace(/\s+/g, " ");
 
 export class UserService {
-  // Crear usuario (email/password)
   static async createUser(data: CreateUserInput) {
+    const email = data.email?.trim().toLowerCase();
+    if (!email)
+      throw new BadRequestError("El correo electrónico es obligatorio.");
+    if (!data.password?.trim())
+      throw new BadRequestError("La contraseña es obligatoria.");
+    if (!data.first_name?.trim() || !data.last_name?.trim()) {
+      throw new BadRequestError("Nombre y apellido son obligatorios.");
+    }
+
+    const existingUser = await User.findOne({ where: { email } });
+    if (existingUser)
+      throw new ConflictError("El correo electrónico ya está en uso.");
+
     try {
-      const email = data.email?.trim().toLowerCase();
-      if (!email) throw new BadRequestError("El correo electrónico es obligatorio.");
-      if (!data.password?.trim()) throw new BadRequestError("La contraseña es obligatoria.");
-      if (!data.first_name?.trim() || !data.last_name?.trim()) {
-        throw new BadRequestError("Nombre y apellido son obligatorios.");
-      }
-
-      const existingUser = await User.findOne({ where: { email } });
-      if (existingUser) throw new ConflictError("El correo electrónico ya está en uso.");
-
       const hashedPassword = await bcrypt.hash(data.password, SALT_ROUNDS);
 
       const user = await User.create({
@@ -47,18 +48,18 @@ export class UserService {
         status: UserStatus.Activo,
       });
 
-      // defaultScope oculta password
-      return await User.findByPk(user.user_id);
+      return await User.findByPk(user.user_id); 
     } catch (error: any) {
-      if (error instanceof BadRequestError || error instanceof ConflictError) throw error;
-      if (error?.name === "SequelizeUniqueConstraintError") {
+      if (
+        error?.name === "SequelizeUniqueConstraintError" ||
+        error?.original?.code === "23505"
+      ) {
         throw new ConflictError("El correo electrónico ya está en uso.");
       }
       throw new InternalServerError("Error al crear el usuario.");
     }
   }
 
-  // Buscar por ID (defaultScope)
   static async findById(id: string) {
     if (!id) throw new BadRequestError("El ID del usuario es obligatorio.");
     const user = await User.findByPk(id);
@@ -66,7 +67,6 @@ export class UserService {
     return user;
   }
 
-  // Login helper: obtener con password
   static async findByEmailWithPassword(email: string) {
     const user = await User.scope("withPassword").findOne({
       where: { email: email.toLowerCase().trim() },
@@ -75,7 +75,6 @@ export class UserService {
     return user;
   }
 
-  // Google: find or create (vincula por email si ya existe)
   static async findOrCreateGoogleUser(profile: GoogleProfile) {
     try {
       const provider = "google";
@@ -99,7 +98,9 @@ export class UserService {
 
       user = await User.create({
         first_name: profile.name?.givenName ? norm(profile.name.givenName) : "",
-        last_name: profile.name?.familyName ? norm(profile.name.familyName) : "",
+        last_name: profile.name?.familyName
+          ? norm(profile.name.familyName)
+          : "",
         email,
         status: UserStatus.Activo,
         company: CompanyType.Externa,
@@ -131,7 +132,9 @@ export class UserService {
       const email = profile.emails?.[0]?.value?.toLowerCase()?.trim() ?? "";
       const adminUser = await User.create({
         first_name: profile.name?.givenName ? norm(profile.name.givenName) : "",
-        last_name: profile.name?.familyName ? norm(profile.name.familyName) : "",
+        last_name: profile.name?.familyName
+          ? norm(profile.name.familyName)
+          : "",
         email,
         status: UserStatus.Activo,
         company: CompanyType.Externa,
@@ -150,8 +153,10 @@ export class UserService {
     }
   }
 
-  // Completar/actualizar perfil
-  static async completeUserProfile(userId: string, profileData: UpdateUserProfileInput) {
+  static async completeUserProfile(
+    userId: string,
+    profileData: UpdateUserProfileInput
+  ) {
     try {
       const user = await this.findById(userId);
 
@@ -186,14 +191,17 @@ export class UserService {
 
       await user.save();
 
-      const { password, ...userWithoutPassword } = user.get({ plain: true }) as any;
+      const { password, ...userWithoutPassword } = user.get({
+        plain: true,
+      }) as any;
       return userWithoutPassword;
     } catch (error: any) {
       if (
         error instanceof ConflictError ||
         error instanceof NotFoundError ||
         error instanceof BadRequestError
-      ) throw error;
+      )
+        throw error;
 
       if (error?.name === "SequelizeUniqueConstraintError") {
         throw new ConflictError("Campo único ya está en uso.");
@@ -224,7 +232,8 @@ export class UserService {
   }) {
     const scopes: any[] = [];
     if (opts.q) scopes.push({ method: ["search", opts.q] });
-    if (opts.department_id !== undefined) scopes.push({ method: ["byDepartment", opts.department_id] });
+    if (opts.department_id !== undefined)
+      scopes.push({ method: ["byDepartment", opts.department_id] });
     if (opts.role) scopes.push({ method: ["byRole", opts.role] });
     if (opts.status) scopes.push({ method: ["byStatus", opts.status] });
     if (opts.recent) scopes.push("recent");
@@ -236,5 +245,18 @@ export class UserService {
       limit: pageSize,
       offset: (page - 1) * pageSize,
     });
+  }
+
+  static async delete(userId: string) {
+    try {
+      const user = await this.findById(userId);
+      await user.destroy();
+    } catch (error: any) {
+      if (error instanceof NotFoundError) throw error;
+      if (error?.name === "SequelizeForeignKeyConstraintError") {
+        throw new ConflictError("No se puede eliminar: hay registros asociados a este usuario.");
+      }
+      throw new InternalServerError("Error al eliminar el usuario.");
+    }
   }
 }

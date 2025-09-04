@@ -22,13 +22,72 @@ import { NotificationType } from "../enums/notificationType.enum";
 import { UserRole } from "../enums/userRole.enum";
 import { UserStatus } from "../enums/userStatus.enum";
 
-const SORT_MAP: Record<string, "createdAt" | "updatedAt" | "notification_id"> = {
-  createdAt: "createdAt",
-  updatedAt: "updatedAt",
-  notification_id: "notification_id",
-};
+const SORT_MAP: Record<string, "createdAt" | "updatedAt" | "notification_id"> =
+  {
+    createdAt: "createdAt",
+    updatedAt: "updatedAt",
+    notification_id: "notification_id",
+  };
 
 export class NotificationService {
+  static async notifyAssignee(
+    ticketId: string,
+    userId: string,
+    opts?: { type?: NotificationType; message?: string },
+    trx?: Transaction
+  ) {
+    const type = opts?.type ?? NotificationType.Informacion;
+    const message =
+      opts?.message ??
+      `Se te ha asignado el ticket ${ticketId.substring(0, 8)}.`;
+
+    return this.createAndFanout(
+      {
+        type,
+        message,
+        ticket_id: ticketId,
+        recipients: [userId],
+      },
+      trx
+    );
+  }
+
+  static async notifyToUsers(
+    recipients: string[],
+    payload: { type: NotificationType; message: string; ticket_id?: string },
+    trx?: Transaction
+  ) {
+    if (!recipients?.length) return null;
+    return this.createAndFanout(
+      {
+        type: payload.type,
+        message: payload.message.trim(),
+        ticket_id: payload.ticket_id ?? null,
+        recipients,
+      },
+      trx
+    );
+  }
+
+  static async notifyToDeptByName(
+    departmentName: string,
+    payload: { type: NotificationType; message: string; ticket_id?: string },
+    opts?: { roles?: UserRole[]; onlyActive?: boolean; excludeUserId?: string },
+    trx?: Transaction
+  ) {
+    const recipients = await this.recipientsDeptAllByName(departmentName, opts);
+    if (!recipients.length) return null;
+
+    return this.createAndFanout(
+      {
+        type: payload.type,
+        message: payload.message.trim(),
+        ticket_id: payload.ticket_id ?? null,
+        recipients,
+      },
+      trx
+    );
+  }
   static async createAndFanout(
     payload: CreateNotificationInput,
     trx?: Transaction
@@ -79,7 +138,8 @@ export class NotificationService {
 
   static async findById(id: number) {
     const row = await Notification.scope("withRelations").findByPk(id);
-    if (!row) throw new NotFoundError(`Notificación con id ${id} no encontrada.`);
+    if (!row)
+      throw new NotFoundError(`Notificación con id ${id} no encontrada.`);
     return row;
   }
 
@@ -101,8 +161,10 @@ export class NotificationService {
 
       if (ticketId) scopes.push({ method: ["byTicket", ticketId] });
       if (type) scopes.push({ method: ["byType", type] });
-      if (search.trim()) scopes.push({ method: ["searchMessage", search.trim()] });
-      if (from || to) scopes.push({ method: ["betweenCreated", from ?? null, to ?? null] });
+      if (search.trim())
+        scopes.push({ method: ["searchMessage", search.trim()] });
+      if (from || to)
+        scopes.push({ method: ["betweenCreated", from ?? null, to ?? null] });
 
       const sortCol = SORT_MAP[sort] ?? "createdAt";
       const sortDir = order === "ASC" ? "ASC" : "DESC";
@@ -133,11 +195,14 @@ export class NotificationService {
         order = "DESC",
       } = params;
 
-      const scopes: any[] = [{ method: ["forRecipient", userId, unreadOnly, hidden] }];
+      const scopes: any[] = [
+        { method: ["forRecipient", userId, unreadOnly, hidden] },
+      ];
 
       if (type) scopes.push({ method: ["byType", type] });
       if (ticketId) scopes.push({ method: ["byTicket", ticketId] });
-      if (from || to) scopes.push({ method: ["betweenCreated", from ?? null, to ?? null] });
+      if (from || to)
+        scopes.push({ method: ["betweenCreated", from ?? null, to ?? null] });
 
       const sortCol = SORT_MAP[sort] ?? "createdAt";
       const sortDir = order === "ASC" ? "ASC" : "DESC";
@@ -148,7 +213,9 @@ export class NotificationService {
         offset,
       });
     } catch {
-      throw new InternalServerError("Error al obtener notificaciones del usuario.");
+      throw new InternalServerError(
+        "Error al obtener notificaciones del usuario."
+      );
     }
   }
 

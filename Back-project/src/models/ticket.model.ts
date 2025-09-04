@@ -11,7 +11,7 @@ import { TicketStatus } from "../enums/ticketStatus.enum";
 import { TicketPriority } from "../enums/ticketPriority.enum";
 
 interface TicketAttributes {
-  ticket_id: string; // UUID
+  ticket_id: string; 
   closed_at?: Date | null;
   titulo: string;
   description: string;
@@ -59,7 +59,6 @@ class Ticket
   public readonly updatedAt!: Date;
 
   public static associate(models: { [key: string]: ModelStatic<Model> }): void {
-    // belongsTo
     Ticket.belongsTo(models.Device, {
       foreignKey: "device_id",
       as: "device",
@@ -81,7 +80,6 @@ class Ticket
       onDelete: "SET NULL",
     });
 
-    // hasMany
     Ticket.hasMany(models.Comment, {
       foreignKey: "ticket_id",
       as: "comments",
@@ -110,17 +108,14 @@ class Ticket
   }
 
   static initScopes() {
-    // Tickets abiertos
     Ticket.addScope("open", {
       where: { status: TicketStatus.Abierto },
     });
 
-    // Por departamento
     Ticket.addScope("byDepartment", (department_id: number) => ({
       where: { department_id },
     }));
 
-    // Búsqueda por texto
     Ticket.addScope(
       "search",
       (q: string): FindOptions<TicketAttributes> => {
@@ -137,12 +132,10 @@ class Ticket
       }
     );
 
-    // Más recientes primero
     Ticket.addScope("recent", {
       order: [["createdAt", "DESC"]] as Order,
     });
 
-    // Orden genérico
     Ticket.addScope(
       "orderBy",
       (col: TicketOrderableCol, dir: "ASC" | "DESC" = "ASC"): FindOptions<TicketAttributes> => ({
@@ -150,7 +143,6 @@ class Ticket
       })
     );
 
-    // Include básicos
     Ticket.addScope("withBasics", {
       include: [
         { model: sequelize.models.Device, as: "device" },
@@ -201,7 +193,6 @@ Ticket.init(
     department_id: {
       type: DataTypes.INTEGER,
       allowNull: false,
-      // OJO: Department PK = "id"
       references: { model: "departments", key: "id" },
     },
     parent_ticket_id: {
@@ -226,7 +217,6 @@ Ticket.init(
   }
 );
 
-// Registrar scopes
 Ticket.initScopes?.();
 
 export default Ticket;

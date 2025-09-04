@@ -10,8 +10,8 @@ export type UpdateDeviceTypeInput = {
 
 export type ListDeviceTypesParams = {
   search?: string;
-  limit?: number;   // default 20
-  offset?: number;  // default 0
+  limit?: number;   
+  offset?: number;  
   sort?: "name" | "code";
   order?: "ASC" | "DESC";
 };

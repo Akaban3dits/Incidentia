@@ -16,19 +16,22 @@ import { NotificationService } from "./notification.service";
 import { NotificationType } from "../enums/notificationType.enum";
 import { UserRole } from "../enums/userRole.enum";
 
-const SORT_MAP: Record<string, "titulo" | "status" | "priority" | "createdAt"> = {
-  titulo: "titulo",
-  status: "status",
-  priority: "priority",
-  createdAt: "createdAt",
-};
+const SORT_MAP: Record<string, "titulo" | "status" | "priority" | "createdAt"> =
+  {
+    titulo: "titulo",
+    status: "status",
+    priority: "priority",
+    createdAt: "createdAt",
+  };
 
 export class TicketService {
   static async create(payload: CreateTicketInput) {
+    if (payload.status === TicketStatus.Cerrado) {
+      throw new BadRequestError(
+        "No se permite crear un ticket con estado Cerrado."
+      );
+    }
     try {
-      const closedAt =
-        payload.status === TicketStatus.Cerrado ? new Date() : null;
-
       const row = await Ticket.create({
         titulo: payload.titulo.trim(),
         description: payload.description.trim(),
@@ -38,7 +41,7 @@ export class TicketService {
         assigned_user_id: payload.assigned_user_id ?? null,
         department_id: payload.department_id,
         parent_ticket_id: payload.parent_ticket_id ?? null,
-        closed_at: closedAt,
+        closed_at: null,
       });
 
       await NotificationService.notifyToDeptByName(
@@ -59,7 +62,9 @@ export class TicketService {
             onlyActive: true,
           }),
         ]);
-        const recipients = Array.from(new Set([...deptAdmins, ...sistemasAdmins]));
+        const recipients = Array.from(
+          new Set([...deptAdmins, ...sistemasAdmins])
+        );
         if (recipients.length) {
           await NotificationService.createAndFanout({
             type: NotificationType.Advertencia,
@@ -121,7 +126,11 @@ export class TicketService {
     }
   }
 
-  static async update(id: string, payload: UpdateTicketInput, actorUserId?: string) {
+  static async update(
+    id: string,
+    payload: UpdateTicketInput,
+    actorUserId?: string
+  ) {
     try {
       const row = await this.findById(id);
 
@@ -129,7 +138,9 @@ export class TicketService {
         payload.parent_ticket_id !== undefined &&
         payload.parent_ticket_id === id
       ) {
-        throw new BadRequestError("parent_ticket_id no puede ser el mismo ticket.");
+        throw new BadRequestError(
+          "parent_ticket_id no puede ser el mismo ticket."
+        );
       }
 
       const prevStatus = row.status;
@@ -138,15 +149,23 @@ export class TicketService {
       const prevDeptId = row.department_id;
 
       if (payload.titulo !== undefined) row.titulo = payload.titulo.trim();
-      if (payload.description !== undefined) row.description = payload.description.trim();
-      if (payload.status !== undefined) row.status = payload.status as TicketStatus;
-      if (payload.priority !== undefined) row.priority = (payload.priority ?? null) as TicketPriority | null;
-      if (payload.device_id !== undefined) row.device_id = payload.device_id ?? null;
-      if (payload.assigned_user_id !== undefined) row.assigned_user_id = payload.assigned_user_id ?? null;
-      if (payload.department_id !== undefined) row.department_id = payload.department_id;
-      if (payload.parent_ticket_id !== undefined) row.parent_ticket_id = payload.parent_ticket_id ?? null;
+      if (payload.description !== undefined)
+        row.description = payload.description.trim();
+      if (payload.status !== undefined)
+        row.status = payload.status as TicketStatus;
+      if (payload.priority !== undefined)
+        row.priority = (payload.priority ?? null) as TicketPriority | null;
+      if (payload.device_id !== undefined)
+        row.device_id = payload.device_id ?? null;
+      if (payload.assigned_user_id !== undefined)
+        row.assigned_user_id = payload.assigned_user_id ?? null;
+      if (payload.department_id !== undefined)
+        row.department_id = payload.department_id;
+      if (payload.parent_ticket_id !== undefined)
+        row.parent_ticket_id = payload.parent_ticket_id ?? null;
 
-      const statusChanged = payload.status !== undefined && payload.status !== prevStatus;
+      const statusChanged =
+        payload.status !== undefined && payload.status !== prevStatus;
       if (statusChanged) {
         if (payload.status === TicketStatus.Cerrado) {
           row.closed_at = new Date();
@@ -171,7 +190,10 @@ export class TicketService {
         payload.assigned_user_id !== undefined &&
         payload.assigned_user_id !== prevAssignee;
       if (assigneeChanged && row.assigned_user_id) {
-        await NotificationService.notifyAssignee(row.ticket_id, row.assigned_user_id);
+        await NotificationService.notifyAssignee(
+          row.ticket_id,
+          row.assigned_user_id
+        );
       }
 
       const priorityChanged =
@@ -189,7 +211,10 @@ export class TicketService {
 
         await NotificationService.createAndFanout({
           type: NotificationType.Alerta,
-          message: `Prioridad CRÍTICA en ticket ${row.ticket_id.substring(0, 8)}.`,
+          message: `Prioridad CRÍTICA en ticket ${row.ticket_id.substring(
+            0,
+            8
+          )}.`,
           ticket_id: row.ticket_id,
           recipients: Array.from(recipients),
         });
@@ -219,7 +244,9 @@ export class TicketService {
       }
 
       if (statusChanged && row.status === TicketStatus.Cerrado) {
-        const deptAdmins = await NotificationService.recipientsDeptAdmins(row.department_id);
+        const deptAdmins = await NotificationService.recipientsDeptAdmins(
+          row.department_id
+        );
         const recipients = new Set<string>(deptAdmins);
         if (row.assigned_user_id) recipients.add(row.assigned_user_id);
 
@@ -235,7 +262,9 @@ export class TicketService {
         payload.department_id !== undefined &&
         payload.department_id !== prevDeptId;
       if (deptChanged) {
-        const newAdmins = await NotificationService.recipientsDeptAdmins(row.department_id);
+        const newAdmins = await NotificationService.recipientsDeptAdmins(
+          row.department_id
+        );
         if (newAdmins.length) {
           await NotificationService.createAndFanout({
             type: NotificationType.Informacion,
