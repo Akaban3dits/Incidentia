@@ -1,17 +1,11 @@
-import {
-  DataTypes,
-  Model,
-  Optional,
-  ModelStatic,
-  Op,
-} from "sequelize";
+import { DataTypes, Model, Optional, ModelStatic, Op } from "sequelize";
 import type { FindOptions, Order } from "sequelize";
 import { sequelize } from "../config/sequelize";
 import { TicketStatus } from "../enums/ticketStatus.enum";
 import { TicketPriority } from "../enums/ticketPriority.enum";
 
 interface TicketAttributes {
-  ticket_id: string; 
+  ticket_id: string;
   closed_at?: Date | null;
   titulo: string;
   description: string;
@@ -21,6 +15,10 @@ interface TicketAttributes {
   assigned_user_id?: string | null;
   department_id: number;
   parent_ticket_id?: string | null;
+  created_by_id?: string | null;
+  created_by_name: string;
+  created_by_email?: string | null;
+
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -33,12 +31,20 @@ type TicketCreationAttributes = Optional<
   | "device_id"
   | "assigned_user_id"
   | "parent_ticket_id"
+  | "created_by_id"
+  | "created_by_name"
+  | "created_by_email"
   | "createdAt"
   | "updatedAt"
 >;
 
-const ORDERABLE_COLUMNS = ["titulo", "status", "priority", "createdAt"] as const;
-export type TicketOrderableCol = typeof ORDERABLE_COLUMNS[number];
+const ORDERABLE_COLUMNS = [
+  "titulo",
+  "status",
+  "priority",
+  "createdAt",
+] as const;
+export type TicketOrderableCol = (typeof ORDERABLE_COLUMNS)[number];
 
 class Ticket
   extends Model<TicketAttributes, TicketCreationAttributes>
@@ -54,6 +60,9 @@ class Ticket
   public assigned_user_id!: string | null;
   public department_id!: number;
   public parent_ticket_id!: string | null;
+  public created_by_id!: string | null;
+  public created_by_name!: string;
+  public created_by_email!: string | null;
 
   public readonly createdAt!: Date;
   public readonly updatedAt!: Date;
@@ -77,6 +86,12 @@ class Ticket
     Ticket.belongsTo(models.Ticket, {
       foreignKey: "parent_ticket_id",
       as: "parentTicket",
+      onDelete: "SET NULL",
+    });
+
+    Ticket.belongsTo(models.User, {
+      foreignKey: "created_by_id",
+      as: "creator",
       onDelete: "SET NULL",
     });
 
@@ -116,21 +131,19 @@ class Ticket
       where: { department_id },
     }));
 
-    Ticket.addScope(
-      "search",
-      (q: string): FindOptions<TicketAttributes> => {
-        const s = q?.trim();
-        if (!s) return {};
-        return {
-          where: {
-            [Op.or]: [
-              { titulo: { [Op.iLike]: `%${s}%` } },
-              { description: { [Op.iLike]: `%${s}%` } },
-            ],
-          },
-        };
-      }
-    );
+    Ticket.addScope("search", (q: string): FindOptions<TicketAttributes> => {
+      const s = q?.trim();
+      if (!s) return {};
+      return {
+        where: {
+          [Op.or]: [
+            { titulo: { [Op.iLike]: `%${s}%` } },
+            { description: { [Op.iLike]: `%${s}%` } },
+            { created_by_name: { [Op.iLike]: `%${s}%` } },
+          ],
+        },
+      };
+    });
 
     Ticket.addScope("recent", {
       order: [["createdAt", "DESC"]] as Order,
@@ -138,7 +151,10 @@ class Ticket
 
     Ticket.addScope(
       "orderBy",
-      (col: TicketOrderableCol, dir: "ASC" | "DESC" = "ASC"): FindOptions<TicketAttributes> => ({
+      (
+        col: TicketOrderableCol,
+        dir: "ASC" | "DESC" = "ASC"
+      ): FindOptions<TicketAttributes> => ({
         order: [[col, dir]] as Order,
       })
     );
@@ -148,6 +164,7 @@ class Ticket
         { model: sequelize.models.Device, as: "device" },
         { model: sequelize.models.User, as: "assignedUser" },
         { model: sequelize.models.Department, as: "department" },
+        { model: sequelize.models.User, as: "creator" },
       ],
     });
   }
@@ -200,6 +217,19 @@ Ticket.init(
       allowNull: true,
       references: { model: "tickets", key: "ticket_id" },
     },
+    created_by_id: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: { model: "users", key: "user_id" },
+    },
+    created_by_name: {
+      type: DataTypes.STRING(150),
+      allowNull: false,
+    },
+    created_by_email: {
+      type: DataTypes.STRING(150),
+      allowNull: false,
+    },
   },
   {
     sequelize,
@@ -213,6 +243,9 @@ Ticket.init(
       { fields: ["assigned_user_id"] },
       { fields: ["device_id"] },
       { fields: ["createdAt"] },
+      { fields: ["created_by_id"] },
+      { fields: ["created_by_name"] },
+      { fields: ["created_by_email"] },
     ],
   }
 );

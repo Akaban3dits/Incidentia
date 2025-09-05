@@ -16,11 +16,11 @@ beforeAll(async () => {
 });
 
 beforeEach(async () => {
-  await Ticket.destroy({ where: {} });
-  await Device.destroy({ where: {} });
-  await DeviceType.destroy({ where: {} });
-  await Department.destroy({ where: {} });
-  await User.destroy({ where: {} });
+  await Ticket.destroy({ where: {} });     
+  await Device.destroy({ where: {} });     
+  await DeviceType.destroy({ where: {} });  
+  await User.destroy({ where: {} });        
+  await Department.destroy({ where: {} });  
 });
 
 afterAll(async () => {

@@ -7,6 +7,7 @@ import {
   ticketListValidator,
   ticketIdValidator,
 } from "../validators/ticket.validator";
+import { authMiddleware } from "../middleware/authMiddleware";
 
 const router = Router();
 
@@ -43,7 +44,7 @@ const router = Router();
  *       201: { description: Creado }
  *       400: { description: Error de validación }
  */
-router.post("/", ticketCreateValidator, validationResultMiddleware, ctrl.create);
+router.post("/", authMiddleware,ticketCreateValidator, validationResultMiddleware, ctrl.create);
 
 /**
  * @swagger

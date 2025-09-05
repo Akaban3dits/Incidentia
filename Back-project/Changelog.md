@@ -1,5 +1,53 @@
 # Changelog
 
+## [0.2.1] - 2025-09-04
+### Added
+- test(helpers): fábrica de usuario vía `/api/users` + firmador JWT (HS256) para usar en suites de tickets.
+- auth(routes): aplicado `authMiddleware` y (donde corresponde) `requireRoles` en endpoints protegidos.
+
+### Changed
+- ticket(controller): `create` ahora **ignora** `created_by_*` del body y los toma del **JWT** (`created_by_id`, `created_by_name`, `created_by_email`) sin validar formato de email.
+- tests(tickets): suites **POST/GET/PUT/DELETE** actualizadas para crear usuario real y enviar `Authorization: Bearer <token>` en todas las requests.
+- tests(env): asegurada la carga de `.env.test` antes de la app; token/issuer/audience neutralizados en test.
+
+### Fixed
+- ticket(create): error **500** por columna faltante — alineado modelo/BD para `created_by_email` en entorno de test (migración/sync aplicada).
+- tests(delete): uso de **UUID v4** válido para casos 404; estados esperados corregidos (204/404).
+- tests(setup): limpieza en orden respetando FKs para evitar violaciones durante los tests.
+
+
+## [0.2.0] - 2025-09-03
+### Added
+- feat(tickets): CRUD completo con includes (`device`, `assignedUser`, `department`), búsqueda/orden/paginación y reglas de negocio:
+  - **No** permitir crear un ticket en estado `Cerrado`.
+  - Manejo automático de `closed_at` al cerrar/reabrir.
+- feat(notifications): métodos `notifyToDeptByName` y `notifyAssignee`; fanout con `createAndFanout`.
+- feat(validators): validadores para tickets (`ticketCreateValidator`, `ticketUpdateValidator`, `ticketIdValidator`, `ticketListValidator`).
+- feat(device-types): módulo completo (modelo + service + controlador + rutas) con scopes (`byName`, `byCode`, `search`, `orderBy`) y **Swagger**.
+- feat(devices): include `withType`, filtro por `deviceTypeId` en listado y **Swagger**.
+- feat(routes/params): helper `devicetypeIdParam` y validadores de query/params para device/deviceType/ticket.
+
+### Changed
+- refactor(app): separar **Express app** (`src/app.ts`) del arranque (`src/server.ts`); el server no se inicia en `test`.
+- refactor(logging): logger centralizado (`logger.info/warn/error`) con **silencio en test**; `morgan` deshabilitado en `test`.
+- refactor(db-init): `ensureDatabaseExists` e `initializeDatabase` usan el logger y limpian mensajes ruidosos.
+
+### Fixed
+- fix(tickets): creación en `Cerrado` ahora responde **400**; `delete` responde **204**; mapping coherente de errores **400/404/500**; validación de `UUID` en `DELETE /:id`.
+- fix(devices): prechecks de duplicados/FK en `update`; **404** si no existe; **400** para FK inválida; **409** para duplicados.
+
+### Tests
+- test(e2e): suites para **departments, device-types, devices y tickets** (POST/GET/PUT/DELETE), incluyendo:
+  - tickets: cierre/reapertura (toggle de `closed_at`), FK inválidas, `parent_ticket_id` no puede ser el mismo `id`.
+  - devices: filtro por `deviceTypeId`, orden y paginación.
+- test(codeerrors): cobertura de paths de error para **device, deviceType, user y ticket** (400/404/409, UUID inválidos, FK inválidas, duplicados).
+- test(setup): `src/tests/setup.ts` limpia tablas relevantes y cierra conexiones; `.env.test` dedicado; logs de test silenciosos.
+
+### Docs
+- docs(swagger): rutas y esquemas para **/api/tickets**, **/api/devices** y **/api/device-types** (tags, params, request/response, códigos de error).
+
+---
+
 ## [0.1.0] - 2025-09-01
 ### Added
 - feat(tickets): CRUD con includes y cierre/reapertura automática (`closed_at`).

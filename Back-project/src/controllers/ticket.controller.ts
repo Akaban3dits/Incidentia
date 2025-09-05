@@ -1,9 +1,28 @@
 import { Request, Response, NextFunction } from "express";
 import { TicketService } from "../services/ticket.service";
+import { UnauthorizedError } from "../utils/error";
 
 export const create = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const ticket = await TicketService.create(req.body);
+    const user = req.user;
+    if (!user?.user_id) {
+      return next(new UnauthorizedError("Usuario no autenticado."));
+    }
+    const {
+      created_by_id: _ignore1,
+      created_by_name: _ignore2,
+      created_by_email: _ignore3,
+      ...body
+    } = req.body;
+
+
+
+    const ticket = await TicketService.create({
+      ...body,
+      created_by_id: user.user_id,
+      ...(typeof user.name === "string" ? { created_by_name: user.name } : {}),
+      ...(typeof user.email === "string" ? { created_by_email: user.email } : {}),
+    });
     return res.status(201).json(ticket);
   } catch (err) {
     next(err);

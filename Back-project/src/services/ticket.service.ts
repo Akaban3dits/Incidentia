@@ -26,12 +26,28 @@ const SORT_MAP: Record<string, "titulo" | "status" | "priority" | "createdAt"> =
 
 export class TicketService {
   static async create(payload: CreateTicketInput) {
+    console.log("[TicketService.create] IN payload", {
+      titulo: payload.titulo,
+      department_id: payload.department_id,
+      status: payload.status,
+      priority: payload.priority,
+      assigned_user_id: payload.assigned_user_id,
+      device_id: payload.device_id,
+      parent_ticket_id: payload.parent_ticket_id,
+      created_by_id: payload.created_by_id,
+      created_by_name: payload.created_by_name,
+      created_by_email: payload.created_by_email,
+    });
+
     if (payload.status === TicketStatus.Cerrado) {
+      console.log("[TicketService.create] blocked: status=Cerrado");
       throw new BadRequestError(
         "No se permite crear un ticket con estado Cerrado."
       );
     }
+
     try {
+      console.log("[TicketService.create] Creating Ticket...");
       const row = await Ticket.create({
         titulo: payload.titulo.trim(),
         description: payload.description.trim(),
@@ -42,8 +58,15 @@ export class TicketService {
         department_id: payload.department_id,
         parent_ticket_id: payload.parent_ticket_id ?? null,
         closed_at: null,
+        created_by_id: payload.created_by_id ?? null,
+        created_by_name: payload.created_by_name?.trim() ?? undefined,
+        created_by_email: payload.created_by_email?.trim() ?? null,
+      });
+      console.log("[TicketService.create] Created Ticket", {
+        ticket_id: row.ticket_id,
       });
 
+      console.log("[TicketService.create] notifyToDeptByName('Sistemas')...");
       await NotificationService.notifyToDeptByName(
         "Sistemas",
         {
@@ -53,8 +76,15 @@ export class TicketService {
         },
         { roles: [UserRole.Administrador], onlyActive: true }
       );
+      console.log("[TicketService.create] notifyToDeptByName OK");
 
       if (!row.assigned_user_id) {
+        console.log(
+          "[TicketService.create] Ticket sin encargado, resolviendo recipients…",
+          {
+            department_id: row.department_id,
+          }
+        );
         const [deptAdmins, sistemasAdmins] = await Promise.all([
           NotificationService.recipientsDeptAdmins(row.department_id),
           NotificationService.recipientsDeptAllByName("Sistemas", {
@@ -65,18 +95,41 @@ export class TicketService {
         const recipients = Array.from(
           new Set([...deptAdmins, ...sistemasAdmins])
         );
+        console.log("[TicketService.create] recipients resueltos", {
+          count: recipients.length,
+        });
+
         if (recipients.length) {
+          console.log("[TicketService.create] createAndFanout...");
           await NotificationService.createAndFanout({
             type: NotificationType.Advertencia,
             message: `Ticket sin encargado (${row.ticket_id.substring(0, 8)}).`,
             ticket_id: row.ticket_id,
             recipients,
           });
+          console.log("[TicketService.create] createAndFanout OK");
+        } else {
+          console.log("[TicketService.create] sin recipients para notificar");
         }
       }
 
+      console.log("[TicketService.create] fetching withBasics", {
+        ticket_id: row.ticket_id,
+      });
       return await Ticket.scope(["withBasics"]).findByPk(row.ticket_id);
     } catch (error: any) {
+      console.error("[TicketService.create] ERROR", {
+        name: error?.name,
+        message: error?.message,
+        fields: error?.fields,
+        original: {
+          code: error?.original?.code,
+          detail: error?.original?.detail,
+          constraint: error?.original?.constraint,
+          table: error?.original?.table,
+        },
+      });
+
       if (error?.name === "SequelizeForeignKeyConstraintError") {
         const col = error?.fields ? Object.keys(error.fields)[0] : undefined;
         if (col === "device_id")
