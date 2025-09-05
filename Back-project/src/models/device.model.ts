@@ -78,6 +78,7 @@ Device.init(
     device_name: {
       type: DataTypes.STRING(100),
       allowNull: false,
+      unique: true,
     },
     device_type_id: {
       type: DataTypes.INTEGER,
@@ -95,7 +96,7 @@ Device.init(
     timestamps: false,
     indexes: [
       { fields: ["device_type_id"] },
-      { fields: ["device_name"] },
+      { unique: true, fields: ["device_name"] },
     ],
   }
 );

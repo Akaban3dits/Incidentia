@@ -10,6 +10,9 @@ export interface CreateTicketInput {
   assigned_user_id?: string | null;
   department_id: number;
   parent_ticket_id?: string | null;
+  created_by_id?: string | null;
+  created_by_name?: string | null;
+  created_by_email?: string | null;
 }
 
 export interface UpdateTicketInput {

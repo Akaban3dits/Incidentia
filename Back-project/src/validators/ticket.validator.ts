@@ -5,15 +5,11 @@ import { TicketPriority } from "../enums/ticketPriority.enum";
 export const ticketCreateValidator = [
   body("titulo")
     .notEmpty()
-    .withMessage("El título es obligatorio.")
     .isLength({ min: 3, max: 255 })
     .withMessage("El título debe tener entre 3 y 255 caracteres."),
-  body("description")
-    .notEmpty()
-    .withMessage("La descripción es obligatoria."),
+  body("description").notEmpty().withMessage("La descripción es obligatoria."),
   body("status")
     .notEmpty()
-    .withMessage("El estado es obligatorio.")
     .isIn(Object.values(TicketStatus))
     .withMessage("Estado inválido."),
   body("priority")
@@ -23,26 +19,25 @@ export const ticketCreateValidator = [
   body("device_id")
     .optional()
     .isInt({ min: 1 })
-    .withMessage("El ID del dispositivo debe ser un número válido."),
+    .toInt()
+    .withMessage("device_id debe ser entero >= 1."),
   body("assigned_user_id")
     .optional()
     .isUUID()
-    .withMessage("El usuario asignado debe ser un UUID válido."),
+    .withMessage("assigned_user_id debe ser UUID."),
   body("department_id")
     .notEmpty()
-    .withMessage("El departamento es obligatorio.")
     .isInt({ min: 1 })
-    .withMessage("El ID de departamento debe ser un número válido."),
+    .toInt()
+    .withMessage("department_id debe ser entero >= 1."),
   body("parent_ticket_id")
     .optional()
     .isUUID()
-    .withMessage("El ticket padre debe ser un UUID válido."),
+    .withMessage("parent_ticket_id debe ser UUID."),
 ];
 
 export const ticketUpdateValidator = [
-  param("id")
-    .isUUID()
-    .withMessage("El ID del ticket debe ser un UUID válido."),
+  param("id").isUUID().withMessage("El ID del ticket debe ser un UUID válido."),
   body("titulo")
     .optional()
     .isLength({ min: 3, max: 255 })
@@ -58,19 +53,21 @@ export const ticketUpdateValidator = [
   body("device_id")
     .optional()
     .isInt({ min: 1 })
-    .withMessage("El ID del dispositivo debe ser un número válido."),
+    .toInt()
+    .withMessage("device_id debe ser entero >= 1."),
   body("assigned_user_id")
     .optional()
     .isUUID()
-    .withMessage("El usuario asignado debe ser un UUID válido."),
+    .withMessage("assigned_user_id debe ser UUID."),
   body("department_id")
     .optional()
     .isInt({ min: 1 })
-    .withMessage("El ID de departamento debe ser un número válido."),
+    .toInt()
+    .withMessage("department_id debe ser entero >= 1."),
   body("parent_ticket_id")
     .optional()
     .isUUID()
-    .withMessage("El ticket padre debe ser un UUID válido."),
+    .withMessage("parent_ticket_id debe ser UUID."),
 ];
 
 export const ticketIdValidator = [
@@ -78,15 +75,23 @@ export const ticketIdValidator = [
 ];
 
 export const ticketListValidator = [
-  query("search").optional().isString().withMessage("El parámetro de búsqueda debe ser texto."),
-  query("limit").optional().isInt({ min: 1 }).withMessage("El límite debe ser un número positivo."),
-  query("offset").optional().isInt({ min: 0 }).withMessage("El offset debe ser un número válido."),
+  query("search").optional().isString().withMessage("search debe ser texto."),
+  query("limit")
+    .optional()
+    .isInt({ min: 1, max: 200 })
+    .toInt()
+    .withMessage("limit debe ser 1..200."),
+  query("offset")
+    .optional()
+    .isInt({ min: 0 })
+    .toInt()
+    .withMessage("offset debe ser >= 0."),
   query("sort")
     .optional()
     .isIn(["titulo", "status", "priority", "createdAt"])
-    .withMessage("El campo de ordenamiento no es válido."),
+    .withMessage("sort inválido."),
   query("order")
     .optional()
     .isIn(["ASC", "DESC"])
-    .withMessage("El orden debe ser ASC o DESC."),
+    .withMessage("order debe ser ASC o DESC."),
 ];

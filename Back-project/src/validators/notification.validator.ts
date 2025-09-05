@@ -25,7 +25,6 @@ export const notificationListValidator = [
   query("order").optional().isIn(["ASC", "DESC"]),
 ];
 
-// Listado por usuario
 export const notificationByUserListValidator = [
   query("userId").isUUID().withMessage("userId es requerido y debe ser UUID"),
   query("unreadOnly").optional().toBoolean().isBoolean(),

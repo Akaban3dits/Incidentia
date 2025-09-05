@@ -5,6 +5,7 @@ import { UnauthorizedError, ForbiddenError } from "../utils/error";
 export interface JwtUserPayload extends JwtPayload {
   user_id: string;
   email?: string;
+  name?: string;
   role?: string;
 }
 

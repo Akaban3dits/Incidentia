@@ -1,5 +1,8 @@
-// src/validators/device.validator.ts
 import { body, param, query } from "express-validator";
+
+export const deviceIdParam = [
+  param("id").isInt({ min: 1 }).withMessage("El ID debe ser un número válido."),
+];
 
 export const deviceCreateValidator = [
   body("name")
@@ -12,13 +15,12 @@ export const deviceCreateValidator = [
     .notEmpty()
     .withMessage("El tipo de dispositivo es obligatorio.")
     .isInt({ min: 1 })
-    .withMessage("El ID de tipo de dispositivo debe ser un número válido."),
+    .withMessage("El ID de tipo de dispositivo debe ser un número válido.")
+    .toInt(),
 ];
 
 export const deviceUpdateValidator = [
-  param("id")
-    .isInt({ min: 1 })
-    .withMessage("El ID debe ser un número válido."),
+  ...deviceIdParam,
   body("name")
     .optional()
     .trim()
@@ -27,23 +29,28 @@ export const deviceUpdateValidator = [
   body("deviceTypeId")
     .optional()
     .isInt({ min: 1 })
-    .withMessage("El ID de tipo de dispositivo debe ser un número válido."),
-];
-
-export const deviceIdValidator = [
-  param("id").isInt({ min: 1 }).withMessage("El ID debe ser un número válido."),
+    .withMessage("El ID de tipo de dispositivo debe ser un número válido.")
+    .toInt(),
 ];
 
 export const deviceListValidator = [
-  query("search").optional().isString().withMessage("El parámetro de búsqueda debe ser texto."),
-  query("limit").optional().isInt({ min: 1 }).withMessage("El límite debe ser un número positivo."),
-  query("offset").optional().isInt({ min: 0 }).withMessage("El offset debe ser un número válido."),
-  query("sort")
+  query("search").optional().isString().withMessage("search debe ser texto."),
+  query("limit")
     .optional()
-    .isIn(["name", "id"])
-    .withMessage("El campo de ordenamiento no es válido."),
+    .isInt({ min: 1, max: 200 })
+    .withMessage("limit debe ser 1..200."),
+  query("offset")
+    .optional()
+    .isInt({ min: 0 })
+    .withMessage("offset debe ser >= 0."),
+  query("sort").optional().isIn(["name", "id"]).withMessage("sort inválido."),
   query("order")
     .optional()
     .isIn(["ASC", "DESC"])
-    .withMessage("El orden debe ser ASC o DESC."),
+    .withMessage("order debe ser ASC o DESC."),
+  query("deviceTypeId")
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage("deviceTypeId debe ser entero >= 1.")
+    .toInt(),
 ];

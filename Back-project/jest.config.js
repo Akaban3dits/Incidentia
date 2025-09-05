@@ -10,9 +10,10 @@ module.exports = {
     "^.+\\.ts$": "ts-jest",
   },
   testMatch: ["**/*.test.ts"],
-  clearMocks: true,
+  setupFiles: ["<rootDir>/src/tests/setupEnv.ts"],
   setupFilesAfterEnv: [
     "<rootDir>/src/tests/setup.ts",
     "<rootDir>/src/tests/silenceLogs.ts",
   ],
+  clearMocks: true,
 };
