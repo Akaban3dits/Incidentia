@@ -4,6 +4,7 @@ import DeviceTypeRoutes from "./deviceType.routes";
 import UserRoutes from "./users.routes";
 import DeviceRoutes from "./devices.routes";
 import TicketRoutes from "./tickets.routes";
+import AuthRoutes from "./auth.routes";
 
 const router = Router();
 
@@ -12,5 +13,6 @@ router.use("/device-types", DeviceTypeRoutes);
 router.use("/devices", DeviceRoutes);
 router.use("/users", UserRoutes);
 router.use("/tickets", TicketRoutes);
+router.use("/auth", AuthRoutes);
 
 export default router;

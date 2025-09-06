@@ -1,4 +1,5 @@
 import { CompanyType } from "../enums/companyType.enum";
+import { UserRole } from "../enums/userRole.enum";
 
 export interface GoogleProfile {
   id: string;
@@ -12,11 +13,16 @@ export type CreateUserInput = {
   email: string;
   password: string;
   phone_number?: string;
+  company?: CompanyType | null;
+  department_id?: number;
+  role?: UserRole; 
 };
 
 export type UpdateUserProfileInput = {
   phone_number?: string;
   password?: string;
+  role?: UserRole;
+  email?: string;
   department_id?: number;  
   company?: CompanyType;
 };
