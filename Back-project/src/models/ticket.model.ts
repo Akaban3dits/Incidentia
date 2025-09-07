@@ -16,7 +16,7 @@ interface TicketAttributes {
   department_id: number;
   parent_ticket_id?: string | null;
   created_by_id?: string | null;
-  created_by_name: string;
+  created_by_name: string | null;
   created_by_email?: string | null;
 
   createdAt?: Date;
@@ -61,7 +61,7 @@ class Ticket
   public department_id!: number;
   public parent_ticket_id!: string | null;
   public created_by_id!: string | null;
-  public created_by_name!: string;
+  public created_by_name!: string | null;
   public created_by_email!: string | null;
 
   public readonly createdAt!: Date;

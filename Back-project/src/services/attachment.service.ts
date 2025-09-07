@@ -1,7 +1,5 @@
 import { Op } from "sequelize";
 import Attachment from "../models/attachment.model";
-import Ticket from "../models/ticket.model";
-import Comment from "../models/comment.model";
 import {
   BadRequestError,
   ConflictError,
@@ -13,8 +11,6 @@ import {
   UpdateAttachmentInput,
   ListAttachmentsParams,
 } from "../types/attachment.types";
-import { NotificationService } from "./notification.service";
-import { NotificationType } from "../enums/notificationType.enum";
 
 const SORT_MAP: Record<string, "uploaded_at" | "createdAt" | "original_filename"> = {
   uploaded_at: "uploaded_at",
@@ -23,7 +19,7 @@ const SORT_MAP: Record<string, "uploaded_at" | "createdAt" | "original_filename"
 };
 
 export class AttachmentService {
-  static async create(data: CreateAttachmentInput, opts?: { actorUserId?: string }) {
+  static async create(data: CreateAttachmentInput, _opts?: { actorUserId?: string }) {
     try {
       const file_path = data.file_path.trim();
       const original_filename = data.original_filename.trim();
@@ -45,42 +41,6 @@ export class AttachmentService {
         is_image: !!data.is_image,
         uploaded_at: data.uploaded_at ?? new Date(),
       });
-
-      const recipients = new Set<string>();
-      let ticketIdForMsg: string | undefined;
-
-      if (row.ticket_id) {
-        const t = await Ticket.findByPk(row.ticket_id, {
-          attributes: ["ticket_id", "assigned_user_id"],
-        });
-        ticketIdForMsg = t?.ticket_id;
-        if (t?.assigned_user_id) recipients.add(t.assigned_user_id);
-      } else if (row.comment_id) {
-        const c = await Comment.findByPk(row.comment_id, {
-          attributes: ["comment_id", "user_id", "ticket_id"],
-        });
-        if (c) {
-          ticketIdForMsg = c.ticket_id;
-          if (c.user_id) recipients.add(c.user_id);
-          const t = await Ticket.findByPk(c.ticket_id, {
-            attributes: ["assigned_user_id"],
-          });
-          if (t?.assigned_user_id) recipients.add(t.assigned_user_id);
-        }
-      }
-
-      if (opts?.actorUserId) {
-        recipients.delete(opts.actorUserId);
-      }
-
-      if (recipients.size && ticketIdForMsg) {
-        await NotificationService.createAndFanout({
-          type: NotificationType.Informacion,
-          message: `Se adjuntó "${original_filename}" al ticket ${ticketIdForMsg.substring(0, 8)}.`,
-          ticket_id: ticketIdForMsg,
-          recipients: Array.from(recipients),
-        });
-      }
 
       return await Attachment.scope(["withTicket", "withComment"]).findByPk(row.attachment_id);
     } catch (error: any) {

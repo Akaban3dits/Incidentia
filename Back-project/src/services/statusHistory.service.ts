@@ -10,6 +10,7 @@ import {
   ListStatusHistoryParams,
 } from "../types/statusHistory.types";
 import { TicketStatus } from "../enums/ticketStatus.enum";
+import { Transaction } from "sequelize";
 
 const SORT_MAP: Record<string, "changed_at" | "createdAt" | "updatedAt"> = {
   changed_at: "changed_at",
@@ -18,7 +19,10 @@ const SORT_MAP: Record<string, "changed_at" | "createdAt" | "updatedAt"> = {
 };
 
 export class StatusHistoryService {
-  static async create(payload: CreateStatusHistoryInput) {
+  static async create(
+    payload: CreateStatusHistoryInput,
+    options?: { transaction?: Transaction }
+  ) {
     try {
       const {
         ticket_id,
@@ -32,13 +36,16 @@ export class StatusHistoryService {
         throw new BadRequestError("old_status y new_status no pueden ser iguales.");
       }
 
-      const row = await StatusHistory.create({
-        ticket_id,
-        old_status,
-        new_status,
-        changed_by_user_id,
-        changed_at: changed_at ? new Date(changed_at) : new Date(),
-      });
+      const row = await StatusHistory.create(
+        {
+          ticket_id,
+          old_status,
+          new_status,
+          changed_by_user_id,
+          changed_at: changed_at ? new Date(changed_at) : new Date(),
+        },
+        { transaction: options?.transaction }
+      );
 
       return await StatusHistory.scope("withRelations").findByPk(row.history_id);
     } catch (error: any) {
@@ -62,15 +69,19 @@ export class StatusHistoryService {
     from: TicketStatus,
     to: TicketStatus,
     changed_by_user_id: string,
-    when?: Date | string
+    when?: Date | string,
+    options?: { transaction?: Transaction }
   ) {
-    return this.create({
-      ticket_id,
-      old_status: from,
-      new_status: to,
-      changed_by_user_id,
-      changed_at: when,
-    });
+    return this.create(
+      {
+        ticket_id,
+        old_status: from,
+        new_status: to,
+        changed_by_user_id,
+        changed_at: when,
+      },
+      options
+    );
   }
 
   static async findById(id: number) {
@@ -94,7 +105,7 @@ export class StatusHistoryService {
         order = "ASC",
       } = params;
 
-      const scopes: any[] = ["withChangedByUser"]; 
+      const scopes: any[] = ["withChangedByUser"];
 
       if (ticketId) scopes.push({ method: ["byTicket", ticketId] });
       if (changedBy) scopes.push({ method: ["byUser", changedBy] });
@@ -112,32 +123,6 @@ export class StatusHistoryService {
       });
     } catch {
       throw new InternalServerError("Error al obtener el historial de estados.");
-    }
-  }
-
-  static async update(id: number, payload: UpdateStatusHistoryInput) {
-    try {
-      const row = await this.findById(id);
-
-      if (payload.changed_at !== undefined) {
-        row.changed_at = new Date(payload.changed_at);
-      }
-
-      await row.save();
-      return await this.findById(id);
-    } catch (error: any) {
-      if (error instanceof NotFoundError) throw error;
-      throw new InternalServerError("Error al actualizar el historial de estado.");
-    }
-  }
-
-  static async delete(id: number) {
-    try {
-      const row = await this.findById(id);
-      await row.destroy();
-    } catch (error: any) {
-      if (error instanceof NotFoundError) throw error;
-      throw new InternalServerError("Error al eliminar el historial de estado.");
     }
   }
 }
