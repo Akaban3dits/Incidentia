@@ -5,7 +5,7 @@ import path from "path";
 import passport from "passport";
 import { setupSwagger } from "./config/swagger";
 import routes from "./routes";
-import "./config/passport";
+import { configurePassport } from "./config/passport"; 
 import errorHandler from "./middleware/errorHandler";
 
 dotenv.config({
@@ -18,13 +18,15 @@ const app: Application = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
 if (process.env.NODE_ENV !== "test") {
   app.use(morgan("dev"));
 }
 
+configurePassport();
 app.use(passport.initialize());
-setupSwagger(app);
 
+setupSwagger(app);
 app.use("/api", routes);
 
 app.use(errorHandler);

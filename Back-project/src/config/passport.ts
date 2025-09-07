@@ -1,5 +1,5 @@
 import passport, { Profile } from "passport";
-import { Strategy as GoogleStrategy } from "passport-google-oauth20";
+import { Strategy as GoogleStrategy, VerifyCallback } from "passport-google-oauth20";
 import { UserService } from "../services/user.service";
 import { UserRole } from "../enums/userRole.enum";
 import { BadRequestError, InternalServerError } from "../utils/error";
@@ -10,6 +10,7 @@ function getEnv(key: string): string {
   if (!v) throw new BadRequestError(`Falta variable de entorno: ${key}`);
   return v;
 }
+
 function joinUrl(base: string, path: string) {
   const b = base.endsWith("/") ? base.slice(0, -1) : base;
   const p = path.startsWith("/") ? path : `/${path}`;
@@ -17,9 +18,10 @@ function joinUrl(base: string, path: string) {
 }
 
 function toGoogleProfile(profile: Profile): GoogleProfile {
+  const emails = (profile.emails || []).map((e) => ({ value: e.value }));
   return {
     id: profile.id,
-    emails: (profile.emails || []).map((e) => ({ value: e.value })),
+    emails,
     name: {
       givenName: profile.name?.givenName || "",
       familyName: profile.name?.familyName || "",
@@ -27,71 +29,80 @@ function toGoogleProfile(profile: Profile): GoogleProfile {
   };
 }
 
+function getPrimaryEmail(profile: Profile): string | null {
+  const emails = profile.emails || [];
+  if (!emails.length) return null;
+  const verified = emails.find((e: any) => (e as any).verified);
+  return (verified?.value || emails[0]?.value || null) ?? null;
+}
+
 export function configurePassport() {
   const clientID = getEnv("GOOGLE_CLIENT_ID");
   const clientSecret = getEnv("GOOGLE_CLIENT_SECRET");
   const callbackBaseUrl = getEnv("GOOGLE_CALLBACK_BASE_URL");
 
-  // Serialización por user_id
-  passport.serializeUser((user: any, done) => {
-    try {
-      done(null, user.user_id);
-    } catch (err) {
-      done(err as any);
-    }
-  });
+  const ADMIN_EMAIL_DOMAIN = (process.env.ADMIN_EMAIL_DOMAIN || "").toLowerCase().trim();
 
-  passport.deserializeUser(async (id: string, done) => {
-    try {
-      const user = await UserService.findById(id);
-      return done(null, user);
-    } catch (err) {
-      return done(err as any);
-    }
-  });
+  const COMMON_STRATEGY_OPTIONS = {
+    clientID,
+    clientSecret,
+    scope: ["profile", "email"],
+    prompt: "select_account" as const,
+  };
 
-  // Estrategia: Usuarios estándar
   passport.use(
     "google-user",
     new GoogleStrategy(
       {
-        clientID,
-        clientSecret,
+        ...COMMON_STRATEGY_OPTIONS,
         callbackURL: joinUrl(callbackBaseUrl, "/api/auth/google/callback"),
-        scope: ["profile", "email"],
       },
-      async (_accessToken, _refreshToken, profile, done) => {
+      async (_accessToken: string, _refreshToken: string, profile: Profile, done: VerifyCallback) => {
         try {
-          const gp = toGoogleProfile(profile);
-          const user = await UserService.findOrCreateGoogleUser(gp);
+          const email = getPrimaryEmail(profile);
+          if (!email) {
+            return done(null, false, { message: "Tu cuenta de Google no tiene un email disponible." });
+          }
+
+          const user = await UserService.findOrCreateGoogleUser(toGoogleProfile(profile));
           return done(null, user);
         } catch (err) {
+          console.error("[google-user] Error:", err);
           return done(new InternalServerError("Error en login con Google."));
         }
       }
     )
   );
 
-  // Estrategia: ÚNICO Administrador
   passport.use(
     "google-admin",
     new GoogleStrategy(
       {
-        clientID,
-        clientSecret,
+        ...COMMON_STRATEGY_OPTIONS,
         callbackURL: joinUrl(callbackBaseUrl, "/api/auth/google/admin/callback"),
-        scope: ["profile", "email"],
       },
-      async (_accessToken, _refreshToken, profile, done) => {
+      async (_accessToken: string, _refreshToken: string, profile: Profile, done: VerifyCallback) => {
         try {
           const existingAdmin = await UserService.findOneByRole(UserRole.Administrador);
           if (existingAdmin) {
             return done(null, false, { message: "Ya existe un administrador." });
           }
-          const gp = toGoogleProfile(profile);
-          const adminUser = await UserService.createAdminFromGoogleProfile(gp);
+
+          const email = getPrimaryEmail(profile);
+          if (!email) {
+            return done(null, false, { message: "Tu cuenta de Google no tiene un email disponible." });
+          }
+          if (ADMIN_EMAIL_DOMAIN) {
+            const domain = email.split("@")[1]?.toLowerCase();
+            if (domain !== ADMIN_EMAIL_DOMAIN) {
+              return done(null, false, { message: `El admin debe pertenecer al dominio ${ADMIN_EMAIL_DOMAIN}.` });
+            }
+          }
+
+          const adminUser = await UserService.createAdminFromGoogleProfile(toGoogleProfile(profile));
           return done(null, adminUser);
         } catch (err) {
+          console.error("[google-admin] Error:", err);
           return done(new InternalServerError("Error al crear admin con Google."));
         }
       }

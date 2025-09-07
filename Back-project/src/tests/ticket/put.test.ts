@@ -14,7 +14,7 @@ function signTokenForUser(user: { user_id: string; email: string; name: string }
       user_id: user.user_id,
       email: user.email,
       name: user.name,
-      role: UserRole.Administrador, 
+      role: UserRole.Administrador,
     },
     TEST_SECRET,
     { algorithm: "HS256" }
@@ -37,7 +37,7 @@ async function makeUserAndToken() {
 
   const user = {
     user_id: res.body.user_id as string,
-    email: res.body.email as string, 
+    email: res.body.email as string,
     name: `${first_name} ${last_name}`,
   };
 
@@ -71,7 +71,7 @@ describe("PUT /api/tickets/:id", () => {
   let ticket: any;
 
   beforeEach(async () => {
-    token = await makeUserAndToken(); 
+    token = await makeUserAndToken();
     deptId = await makeDept(`Operación ${Date.now()}`);
     ticket = await makeTicket({
       titulo: "Ticket a actualizar",
@@ -81,7 +81,7 @@ describe("PUT /api/tickets/:id", () => {
     });
   });
 
-  it("✅ actualiza campos básicos y cierra/reabre (closed_at)", async () => {
+  it("✅ actualiza status/priority y cierra/reabre (closed_at se ajusta automáticamente)", async () => {
     const close = await request(app)
       .put(`/api/tickets/${ticket.ticket_id}`)
       .set("Authorization", `Bearer ${token}`)
@@ -93,19 +93,10 @@ describe("PUT /api/tickets/:id", () => {
     const reopen = await request(app)
       .put(`/api/tickets/${ticket.ticket_id}`)
       .set("Authorization", `Bearer ${token}`)
-      .send({ status: TicketStatus.Abierto, titulo: "Nuevo título" });
+      .send({ status: TicketStatus.Abierto }); 
     expect(reopen.status).toBe(200);
     expect(reopen.body.status).toBe(TicketStatus.Abierto);
     expect(reopen.body.closed_at).toBeNull();
-    expect(reopen.body.titulo).toMatch(/nuevo/i);
-  });
-
-  it("❌ 400 si device_id no existe (FK)", async () => {
-    const res = await request(app)
-      .put(`/api/tickets/${ticket.ticket_id}`)
-      .set("Authorization", `Bearer ${token}`)
-      .send({ device_id: 9999999 });
-    expect(res.status).toBe(400);
   });
 
   it("❌ 400 si assigned_user_id no es UUID", async () => {
@@ -121,15 +112,7 @@ describe("PUT /api/tickets/:id", () => {
     const res = await request(app)
       .put(`/api/tickets/${NON_EXISTING_ID}`)
       .set("Authorization", `Bearer ${token}`)
-      .send({ titulo: "XXX" });
+      .send({ status: TicketStatus.Abierto });
     expect(res.status).toBe(404);
-  });
-
-  it("❌ 400 si parent_ticket_id = id (mismo ticket)", async () => {
-    const res = await request(app)
-      .put(`/api/tickets/${ticket.ticket_id}`)
-      .set("Authorization", `Bearer ${token}`)
-      .send({ parent_ticket_id: ticket.ticket_id });
-    expect(res.status).toBe(400);
   });
 });

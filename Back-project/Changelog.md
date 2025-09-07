@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.2.2] - 2025-09-07
+### Added
+- test(auth): helper reutilizable de tokens `tests/auth/token.ts` con:
+  - `getAdminToken()`, `getToken(role)`, `withAuth(req, token)`, `clearCachedTokens()`.
+
+### Changed
+- ticket(update): `UpdateTicketInput` se **restringe** a `{ status, priority, assigned_user_id }`.  
+  `closed_at` ahora es **solo calculado** por el servicio (al cerrar/reabrir).
+- ticket(service): `update` corre en **transacción**, registra `StatusHistory` con `updatedAt` y retorna el `id` para recargar el ticket **tras el commit** (evita lecturas sucias en tests).
+- tests(ticket PUT): ya **no** envía `titulo` ni otros campos; valida cierre/reapertura y `closed_at`.
+- tests(suites): suites protegidas usan el helper de token, eliminando firmas JWT duplicadas.
+
+### Removed
+- ticket(update): se elimina actualizar vía API los campos  
+  `titulo`, `description`, `department_id`, `device_id`, `parent_ticket_id` y `closed_at`.
+
+### Fixed
+- attachments(service): se quita el **fanout de notificaciones** al crear adjuntos; solo persiste y devuelve el adjunto con relaciones.
+
+---
+
 ## [0.2.1] - 2025-09-04
 ### Added
 - test(helpers): fábrica de usuario vía `/api/users` + firmador JWT (HS256) para usar en suites de tickets.
@@ -14,7 +35,6 @@
 - ticket(create): error **500** por columna faltante — alineado modelo/BD para `created_by_email` en entorno de test (migración/sync aplicada).
 - tests(delete): uso de **UUID v4** válido para casos 404; estados esperados corregidos (204/404).
 - tests(setup): limpieza en orden respetando FKs para evitar violaciones durante los tests.
-
 
 ## [0.2.0] - 2025-09-03
 ### Added

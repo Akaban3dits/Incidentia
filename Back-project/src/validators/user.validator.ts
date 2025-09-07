@@ -29,7 +29,7 @@ export const userCreateValidator = [
     .isLength({ min: 1, max: 50 })
     .withMessage("last_name es requerido (1-50 caracteres)"),
 
-  body("email").trim().normalizeEmail().isEmail().withMessage("email inválido"),
+  body("email").trim().toLowerCase().normalizeEmail().isEmail().withMessage("email inválido"),
 
   body("password")
     .trim()

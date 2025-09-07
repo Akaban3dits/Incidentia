@@ -21,16 +21,7 @@ const norm = (s: string) => s.trim().replace(/\s+/g, " ");
 
 export class UserService {
   static async createUser(data: CreateUserInput) {
-    const email = data.email?.trim().toLowerCase();
-    if (!email)
-      throw new BadRequestError("El correo electrónico es obligatorio.");
-    if (!data.password?.trim())
-      throw new BadRequestError("La contraseña es obligatoria.");
-    if (!data.first_name?.trim() || !data.last_name?.trim()) {
-      throw new BadRequestError("Nombre y apellido son obligatorios.");
-    }
-
-    const existingUser = await User.findOne({ where: { email } });
+    const existingUser = await User.findOne({ where: { email: data.email } });
     if (existingUser)
       throw new ConflictError("El correo electrónico ya está en uso.");
 
@@ -40,15 +31,16 @@ export class UserService {
       const user = await User.create({
         first_name: norm(data.first_name),
         last_name: norm(data.last_name),
-        email,
+        email: data.email,
         password: hashedPassword,
         phone_number: data.phone_number ?? null,
-        company: CompanyType.Externa,
-        role: UserRole.Estandar,
+        company: data.company ?? null,
+        role: data.role ?? UserRole.Estandar,
         status: UserStatus.Activo,
+        department_id: data.department_id ?? null,
       });
 
-      return await User.findByPk(user.user_id); 
+      return await User.findByPk(user.user_id);
     } catch (error: any) {
       if (
         error?.name === "SequelizeUniqueConstraintError" ||
@@ -76,40 +68,51 @@ export class UserService {
   }
 
   static async findOrCreateGoogleUser(profile: GoogleProfile) {
+    const provider = "google";
+    const provider_id = profile.id;
+    const email = profile.emails?.[0]?.value?.toLowerCase()?.trim();
+
+    if (!email)
+      throw new BadRequestError("El perfil de Google no contiene email.");
+
     try {
-      const provider = "google";
-      const provider_id = profile.id;
-      const email = profile.emails?.[0]?.value?.toLowerCase()?.trim();
+      return await (User.sequelize as any).transaction(async (t: any) => {
+        let user = await User.findOne({
+          where: { provider, provider_id },
+          transaction: t,
+        });
+        if (user) return user;
 
-      let user = await User.findOne({ where: { provider, provider_id } });
-      if (user) return user;
-
-      if (email) {
-        const byEmail = await User.findOne({ where: { email } });
-        if (byEmail) {
-          byEmail.provider = provider;
-          byEmail.provider_id = provider_id;
-          await byEmail.save();
-          return byEmail;
+        user = await User.findOne({ where: { email }, transaction: t });
+        if (user) {
+          user.provider = provider;
+          user.provider_id = provider_id;
+          await user.save({ transaction: t });
+          return user;
         }
-      } else {
-        throw new BadRequestError("El perfil de Google no contiene email.");
-      }
 
-      user = await User.create({
-        first_name: profile.name?.givenName ? norm(profile.name.givenName) : "",
-        last_name: profile.name?.familyName
+        const first = profile.name?.givenName
+          ? norm(profile.name.givenName)
+          : "";
+        const last = profile.name?.familyName
           ? norm(profile.name.familyName)
-          : "",
-        email,
-        status: UserStatus.Activo,
-        company: CompanyType.Externa,
-        role: UserRole.Estandar,
-        provider,
-        provider_id,
-      });
+          : "";
 
-      return user;
+        const created = await User.create(
+          {
+            first_name: first,
+            last_name: last,
+            email,
+            status: UserStatus.Activo,
+            role: UserRole.Estandar,
+            provider,
+            provider_id,
+          },
+          { transaction: t }
+        );
+
+        return created;
+      });
     } catch (error: any) {
       if (error?.name === "SequelizeUniqueConstraintError") {
         throw new ConflictError("El correo o el proveedor ya está en uso.");
@@ -125,30 +128,70 @@ export class UserService {
   }
 
   static async createAdminFromGoogleProfile(profile: GoogleProfile) {
+    const provider = "google";
+    const provider_id = profile.id;
+    const email = profile.emails?.[0]?.value?.toLowerCase()?.trim();
+
+    if (!email)
+      throw new BadRequestError("El perfil de Google no contiene email.");
+
     try {
-      const existing = await this.findOneByRole(UserRole.Administrador);
-      if (existing) throw new ConflictError("Ya existe un usuario admin.");
+      return await (User.sequelize as any).transaction(async (t: any) => {
+        const existingAdmin = await this.findOneByRole(UserRole.Administrador);
+        if (existingAdmin) {
+          throw new ConflictError("Ya existe un usuario admin.");
+        }
 
-      const email = profile.emails?.[0]?.value?.toLowerCase()?.trim() ?? "";
-      const adminUser = await User.create({
-        first_name: profile.name?.givenName ? norm(profile.name.givenName) : "",
-        last_name: profile.name?.familyName
+        let user = await User.findOne({
+          where: { provider, provider_id },
+          transaction: t,
+        });
+        if (user) {
+          if (user.role !== UserRole.Administrador) {
+            user.role = UserRole.Administrador;
+            await user.save({ transaction: t });
+          }
+          return user;
+        }
+
+        user = await User.findOne({ where: { email }, transaction: t });
+        if (user) {
+          user.provider = provider;
+          user.provider_id = provider_id;
+          user.role = UserRole.Administrador;
+          user.status = UserStatus.Activo;
+          await user.save({ transaction: t });
+          return user;
+        }
+
+        const first = profile.name?.givenName
+          ? norm(profile.name.givenName)
+          : "";
+        const last = profile.name?.familyName
           ? norm(profile.name.familyName)
-          : "",
-        email,
-        status: UserStatus.Activo,
-        company: CompanyType.Externa,
-        role: UserRole.Administrador,
-        provider: "google",
-        provider_id: profile.id,
-      });
+          : "";
 
-      return adminUser;
+        const adminUser = await User.create(
+          {
+            first_name: first,
+            last_name: last,
+            email,
+            status: UserStatus.Activo,
+            role: UserRole.Administrador,
+            provider,
+            provider_id,
+          },
+          { transaction: t }
+        );
+
+        return adminUser;
+      });
     } catch (error: any) {
       if (error instanceof ConflictError) throw error;
       if (error?.name === "SequelizeUniqueConstraintError") {
         throw new ConflictError("El correo o el proveedor ya está en uso.");
       }
+      if (error instanceof BadRequestError) throw error;
       throw new InternalServerError("Error al crear el usuario administrador.");
     }
   }
@@ -254,7 +297,9 @@ export class UserService {
     } catch (error: any) {
       if (error instanceof NotFoundError) throw error;
       if (error?.name === "SequelizeForeignKeyConstraintError") {
-        throw new ConflictError("No se puede eliminar: hay registros asociados a este usuario.");
+        throw new ConflictError(
+          "No se puede eliminar: hay registros asociados a este usuario."
+        );
       }
       throw new InternalServerError("Error al eliminar el usuario.");
     }

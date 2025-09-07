@@ -12,7 +12,7 @@ interface UserAttributes {
   password?: string | null;
   phone_number?: string | null;
   status: UserStatus;
-  company: CompanyType;
+  company: CompanyType | null;
   role: UserRole;
   provider?: string | null;
   provider_id?: string | null;
@@ -157,11 +157,11 @@ User.init(
     },
     status: {
       type: DataTypes.ENUM(...Object.values(UserStatus)),
-      allowNull: false,
+      allowNull: true,
     },
     company: {
       type: DataTypes.ENUM(...Object.values(CompanyType)),
-      allowNull: false,
+      allowNull: true,
     },
     role: {
       type: DataTypes.ENUM(...Object.values(UserRole)),

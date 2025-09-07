@@ -16,15 +16,9 @@ export interface CreateTicketInput {
 }
 
 export interface UpdateTicketInput {
-  titulo?: string;
-  description?: string;
-  status?: TicketStatus;
+  status?: TicketStatus | null;
   priority?: TicketPriority | null;
-  device_id?: number | null;
   assigned_user_id?: string | null;
-  department_id?: number;
-  parent_ticket_id?: string | null;
-  closed_at?: Date | null;
 }
 
 export interface ListTicketsParams {
