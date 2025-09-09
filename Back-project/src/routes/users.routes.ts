@@ -7,6 +7,7 @@ import {
   userCompleteProfileValidator,
   userSearchValidator,
 } from "../validators/user.validator";
+import { authMiddleware } from "../middleware/authMiddleware";
 
 const router = Router();
 
@@ -116,7 +117,7 @@ router.post("/", userCreateValidator, validationResultMiddleware, ctrl.create);
  *           application/json:
  *             schema: { $ref: '#/components/schemas/UserListResponse' }
  */
-router.get("/", userSearchValidator, validationResultMiddleware, ctrl.search);
+router.get("/", authMiddleware, userSearchValidator, validationResultMiddleware, ctrl.search);
 
 /**
  * @swagger
@@ -137,7 +138,7 @@ router.get("/", userSearchValidator, validationResultMiddleware, ctrl.search);
  *             schema: { $ref: '#/components/schemas/User' }
  *       404: { description: No encontrado }
  */
-router.get("/:userId", userIdParam, validationResultMiddleware, ctrl.getOne);
+router.get("/:userId", authMiddleware, userIdParam, validationResultMiddleware, ctrl.getOne);
 
 /**
  * @swagger
@@ -167,6 +168,7 @@ router.get("/:userId", userIdParam, validationResultMiddleware, ctrl.getOne);
  */
 router.put(
   "/:userId/profile",
+  authMiddleware,
   userCompleteProfileValidator,
   validationResultMiddleware,
   ctrl.completeProfile
@@ -191,6 +193,7 @@ router.put(
  */
 router.delete(
   "/:userId",
+  authMiddleware,
   userIdParam,
   validationResultMiddleware,
   ctrl.remove

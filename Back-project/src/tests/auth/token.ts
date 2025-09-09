@@ -3,7 +3,7 @@ import jwt from "jsonwebtoken";
 import app from "../../app";
 import { UserRole } from "../../enums/userRole.enum";
 
-const TEST_SECRET = process.env.JWT_SECRET || "test-secret";
+const TEST_SECRET = process.env.JWT_SECRET || "test_secret";
 
 let cachedAdmin: { token: string; user_id: string } | null = null;
 
@@ -18,7 +18,8 @@ function signToken(payload: {
 
 async function createUserForRole(role: UserRole) {
   const unique = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-  const first_name = role === UserRole.Administrador ? "Admin" : "User";
+  const first_name =
+    role === UserRole.Administrador ? "Administrador" : "Estandar";
   const last_name = "Test";
   const email = `${first_name.toLowerCase()}.${unique}@example.com`;
 

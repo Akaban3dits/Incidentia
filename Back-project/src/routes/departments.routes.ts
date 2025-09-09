@@ -7,6 +7,7 @@ import {
   departmentIdParam,
 } from "../validators/department.validator";
 import { validationResultMiddleware } from "../middleware/validationMiddleware";
+import { authMiddleware } from "../middleware/authMiddleware";
 
 const router = Router();
 
@@ -118,6 +119,7 @@ const router = Router();
  */
 router.post(
   "/",
+  authMiddleware,
   departmentCreateValidator,
   validationResultMiddleware,
   DepartmentController.create
@@ -181,6 +183,7 @@ router.post(
 router.get(
   "/",
   departmentListValidator,
+  authMiddleware,
   validationResultMiddleware,
   DepartmentController.list
 );
@@ -205,6 +208,7 @@ router.get(
  */
 router.get(
   "/:id",
+  authMiddleware,
   departmentIdParam,
   validationResultMiddleware,
   DepartmentController.getOne
@@ -240,6 +244,7 @@ router.get(
  */
 router.put(
   "/:id",
+  authMiddleware,
   departmentIdParam,
   departmentUpdateValidator,
   validationResultMiddleware,
@@ -264,6 +269,7 @@ router.put(
  */
 router.delete(
   "/:id",
+  authMiddleware,
   departmentIdParam,
   validationResultMiddleware,
   DepartmentController.remove

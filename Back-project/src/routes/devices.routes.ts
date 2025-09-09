@@ -7,6 +7,7 @@ import {
   deviceIdParam,
   deviceListValidator,
 } from "../validators/device.validator";
+import { authMiddleware } from "../middleware/authMiddleware";
 
 const router = Router();
 
@@ -65,7 +66,7 @@ const router = Router();
  *       400: { description: Error de validación o FK inválida }
  *       409: { description: Nombre duplicado }
  */
-router.post("/", deviceCreateValidator, validationResultMiddleware, ctrl.create);
+router.post("/", authMiddleware, deviceCreateValidator, validationResultMiddleware, ctrl.create);
 
 /**
  * @swagger
@@ -99,7 +100,7 @@ router.post("/", deviceCreateValidator, validationResultMiddleware, ctrl.create)
  *           application/json:
  *             schema: { $ref: '#/components/schemas/DeviceListResponse' }
  */
-router.get("/", deviceListValidator, validationResultMiddleware, ctrl.list);
+router.get("/", authMiddleware, deviceListValidator, validationResultMiddleware, ctrl.list);
 
 /**
  * @swagger
@@ -120,7 +121,7 @@ router.get("/", deviceListValidator, validationResultMiddleware, ctrl.list);
  *             schema: { $ref: '#/components/schemas/Device' }
  *       404: { description: No encontrado }
  */
-router.get("/:id", deviceIdParam, validationResultMiddleware, ctrl.getOne);
+router.get("/:id", authMiddleware,deviceIdParam, validationResultMiddleware, ctrl.getOne);
 
 /**
  * @swagger
@@ -148,7 +149,7 @@ router.get("/:id", deviceIdParam, validationResultMiddleware, ctrl.getOne);
  *       404: { description: No encontrado }
  *       409: { description: Nombre duplicado }
  */
-router.put("/:id", deviceUpdateValidator, validationResultMiddleware, ctrl.update);
+router.put("/:id", authMiddleware,deviceUpdateValidator, validationResultMiddleware, ctrl.update);
 
 /**
  * @swagger
@@ -166,6 +167,6 @@ router.put("/:id", deviceUpdateValidator, validationResultMiddleware, ctrl.updat
  *       404: { description: No encontrado }
  *       409: { description: Conflicto por dependencias (FK) }
  */
-router.delete("/:id", deviceIdParam, validationResultMiddleware, ctrl.remove);
+router.delete("/:id", authMiddleware,deviceIdParam, validationResultMiddleware, ctrl.remove);
 
 export default router;

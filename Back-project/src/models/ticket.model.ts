@@ -224,11 +224,11 @@ Ticket.init(
     },
     created_by_name: {
       type: DataTypes.STRING(150),
-      allowNull: false,
+      allowNull: true,
     },
     created_by_email: {
       type: DataTypes.STRING(150),
-      allowNull: false,
+      allowNull: true,
     },
   },
   {
