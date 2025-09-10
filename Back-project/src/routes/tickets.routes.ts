@@ -44,7 +44,13 @@ const router = Router();
  *       201: { description: Creado }
  *       400: { description: Error de validación }
  */
-router.post("/", authMiddleware,ticketCreateValidator, validationResultMiddleware, ctrl.create);
+router.post(
+  "/",
+  authMiddleware,
+  ticketCreateValidator,
+  validationResultMiddleware,
+  ctrl.create
+);
 
 /**
  * @swagger
@@ -71,7 +77,13 @@ router.post("/", authMiddleware,ticketCreateValidator, validationResultMiddlewar
  *     responses:
  *       200: { description: OK }
  */
-router.get("/", ticketListValidator, validationResultMiddleware, ctrl.list);
+router.get(
+  "/",
+  authMiddleware,
+  ticketListValidator,
+  validationResultMiddleware,
+  ctrl.list
+);
 
 /**
  * @swagger
@@ -88,7 +100,13 @@ router.get("/", ticketListValidator, validationResultMiddleware, ctrl.list);
  *       200: { description: OK }
  *       404: { description: No encontrado }
  */
-router.get("/:id", ticketIdValidator, validationResultMiddleware, ctrl.getOne);
+router.get(
+  "/:id",
+  authMiddleware,
+  ticketIdValidator,
+  validationResultMiddleware,
+  ctrl.getOne
+);
 
 /**
  * @swagger
@@ -121,7 +139,13 @@ router.get("/:id", ticketIdValidator, validationResultMiddleware, ctrl.getOne);
  *       400: { description: Error de validación }
  *       404: { description: No encontrado }
  */
-router.put("/:id", ticketUpdateValidator, validationResultMiddleware, ctrl.update);
+router.put(
+  "/:id",
+  authMiddleware,
+  ticketUpdateValidator,
+  validationResultMiddleware,
+  ctrl.update
+);
 
 /**
  * @swagger
@@ -138,6 +162,12 @@ router.put("/:id", ticketUpdateValidator, validationResultMiddleware, ctrl.updat
  *       204: { description: Sin contenido }
  *       404: { description: No encontrado }
  */
-router.delete("/:id", ticketIdValidator, validationResultMiddleware, ctrl.remove);
+router.delete(
+  "/:id",
+  authMiddleware,
+  ticketIdValidator,
+  validationResultMiddleware,
+  ctrl.remove
+);
 
 export default router;

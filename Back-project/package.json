@@ -4,6 +4,8 @@
   "main": "index.js",
   "scripts": {
     "test": "jest --runInBand",
+    "test:user": "jest --runInBand tests/user",
+    "test:ticket": "jest --runInBand tests/ticket",
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "db:migrate": "tsx ./src/db/run-migrations.ts",
     "db:rollback": "tsx ./src/db/run-migrations.ts down"

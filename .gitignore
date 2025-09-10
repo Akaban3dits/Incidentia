@@ -1,6 +1,7 @@
 # Ignorar archivos de entorno en backend y frontend
 Back-project/.env
 Front-project/incidentia/.env
+Back-project/.env.test
 
 # Ignorar node_modules en ambos proyectos
 Back-project/node_modules/

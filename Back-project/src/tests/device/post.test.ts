@@ -1,15 +1,22 @@
 import request from "supertest";
 import app from "../../app";
+import { getAdminToken, withAuth } from "../auth/token";
 
 describe("POST /api/devices", () => {
+  let token: string;
+
+  beforeEach(async () => {
+    token = await getAdminToken();
+  });
+
   const makeType = async (name = "Laptop", code = "LPT") => {
-    const r = await request(app).post("/api/device-types").send({ name, code });
+    const r = await withAuth(request(app).post("/api/device-types"), token).send({ name, code });
     return r.body;
   };
 
   it("✅ crea un dispositivo válido", async () => {
     const t = await makeType();
-    const res = await request(app).post("/api/devices").send({
+    const res = await withAuth(request(app).post("/api/devices"), token).send({
       name: "PC-01",
       deviceTypeId: t.device_type_id,
     });
@@ -22,7 +29,7 @@ describe("POST /api/devices", () => {
 
   it("❌ 400 si falta name", async () => {
     const t = await makeType("Monitor", "MON");
-    const res = await request(app).post("/api/devices").send({
+    const res = await withAuth(request(app).post("/api/devices"), token).send({
       deviceTypeId: t.device_type_id,
     });
     expect(res.status).toBe(400);
@@ -30,7 +37,7 @@ describe("POST /api/devices", () => {
 
   it("❌ 400 si name muy corto", async () => {
     const t = await makeType("Impresora", "IMP");
-    const res = await request(app).post("/api/devices").send({
+    const res = await withAuth(request(app).post("/api/devices"), token).send({
       name: "A",
       deviceTypeId: t.device_type_id,
     });
@@ -38,14 +45,14 @@ describe("POST /api/devices", () => {
   });
 
   it("❌ 400 si falta deviceTypeId", async () => {
-    const res = await request(app).post("/api/devices").send({
+    const res = await withAuth(request(app).post("/api/devices"), token).send({
       name: "PC-02",
     });
     expect(res.status).toBe(400);
   });
 
   it("❌ 400 si deviceTypeId no existe (FK inválida)", async () => {
-    const res = await request(app).post("/api/devices").send({
+    const res = await withAuth(request(app).post("/api/devices"), token).send({
       name: "PC-03",
       deviceTypeId: 9999999,
     });
@@ -56,8 +63,8 @@ describe("POST /api/devices", () => {
     const t1 = await makeType("Tipo A", "AAA");
     const t2 = await makeType("Tipo B", "BBB");
 
-    await request(app).post("/api/devices").send({ name: "UNICO", deviceTypeId: t1.device_type_id });
-    const res = await request(app).post("/api/devices").send({ name: "UNICO", deviceTypeId: t2.device_type_id });
+    await withAuth(request(app).post("/api/devices"), token).send({ name: "UNICO", deviceTypeId: t1.device_type_id });
+    const res = await withAuth(request(app).post("/api/devices"), token).send({ name: "UNICO", deviceTypeId: t2.device_type_id });
     expect(res.status).toBe(409);
   });
 });
