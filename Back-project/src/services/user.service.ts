@@ -31,7 +31,7 @@ export class UserService {
       const user = await User.create({
         first_name: norm(data.first_name),
         last_name: norm(data.last_name),
-        email: data.email,
+        email: data.email.toLowerCase().trim(),
         password: hashedPassword,
         phone_number: data.phone_number ?? null,
         company: data.company ?? null,
@@ -71,6 +71,7 @@ export class UserService {
     const provider = "google";
     const provider_id = profile.id;
     const email = profile.emails?.[0]?.value?.toLowerCase()?.trim();
+
 
     if (!email)
       throw new BadRequestError("El perfil de Google no contiene email.");

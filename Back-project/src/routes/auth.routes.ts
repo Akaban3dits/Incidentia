@@ -1,7 +1,77 @@
 import { Router } from "express";
 import { AuthController } from "../controllers/auth.controller";
+import { loginValidator } from "../validators/auth.validator";
+import { validationResultMiddleware } from "../middleware/validationMiddleware";
 
 const router = Router();
+
+/**
+ * @openapi
+ * /auth/login:
+ *   post:
+ *     summary: Inicio de sesión con email y contraseña
+ *     description: >
+ *       Permite autenticar a un usuario usando sus credenciales (email y contraseña).  
+ *       Si las credenciales son correctas, genera un token JWT que incluye la información básica del usuario
+ *       y el estado de `isCompleteProfile`.
+ *     tags:
+ *       - Autenticación
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - password
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: usuario@ejemplo.com
+ *                 description: Email del usuario registrado.
+ *               password:
+ *                 type: string
+ *                 format: password
+ *                 example: "MiC0ntraseñaSegura!"
+ *                 description: Contraseña del usuario.
+ *     responses:
+ *       200:
+ *         description: Autenticación exitosa, devuelve token JWT y datos del usuario.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 token:
+ *                   type: string
+ *                   description: Token JWT para autenticación en la aplicación.
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                       description: ID del usuario.
+ *                     email:
+ *                       type: string
+ *                       description: Email del usuario.
+ *                     role:
+ *                       type: string
+ *                       description: Rol del usuario.
+ *                     isCompleteProfile:
+ *                       type: boolean
+ *                       description: Indica si el perfil del usuario está completo.
+ *       400:
+ *         description: Email o contraseña faltante o inválida.
+ *       401:
+ *         description: Credenciales incorrectas.
+ *       404:
+ *         description: Usuario no encontrado.
+ *       500:
+ *         description: Error interno del servidor.
+ */
+router.post("/login", loginValidator, validationResultMiddleware, AuthController.login);
 
 /**
  * @openapi
@@ -56,26 +126,6 @@ router.get("/google", (req, res, next) => {
  *     responses:
  *       200:
  *         description: Autenticación exitosa, token JWT generado.
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 token:
- *                   type: string
- *                   description: Token JWT para autenticación.
- *                 user:
- *                   type: object
- *                   properties:
- *                     id:
- *                       type: string
- *                       description: ID del usuario.
- *                     email:
- *                       type: string
- *                       description: Email del usuario.
- *                     role:
- *                       type: string
- *                       description: Rol del usuario en la aplicación.
  *       401:
  *         description: Autenticación fallida o código inválido.
  *       400:
@@ -100,11 +150,6 @@ router.get("/google/callback", (req, res, next) => {
  *     responses:
  *       302:
  *         description: Redirección a Google para autenticación del admin.
- *         content:
- *           text/html:
- *             schema:
- *               type: string
- *               example: "<html>Redirecting...</html>"
  *       400:
  *         description: Solicitud incorrecta.
  *       500:
@@ -125,42 +170,9 @@ router.get("/google/admin", (req, res, next) => {
  *       Este endpoint debe ser usado únicamente para crear el primer admin.
  *     tags:
  *       - Autenticación
- *     parameters:
- *       - in: query
- *         name: code
- *         schema:
- *           type: string
- *         required: true
- *         description: Código de autorización devuelto por Google.
- *       - in: query
- *         name: state
- *         schema:
- *           type: string
- *         required: false
- *         description: Estado enviado en la solicitud original (opcional).
  *     responses:
  *       200:
  *         description: Administrador creado exitosamente, token JWT generado.
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 token:
- *                   type: string
- *                   description: Token JWT del administrador.
- *                 user:
- *                   type: object
- *                   properties:
- *                     id:
- *                       type: string
- *                       description: ID del usuario admin.
- *                     email:
- *                       type: string
- *                       description: Email del usuario admin.
- *                     role:
- *                       type: string
- *                       description: Rol del usuario, siempre 'Administrador'.
  *       401:
  *         description: Autenticación fallida o código inválido.
  *       400:
