@@ -21,7 +21,6 @@ const StepVerification: FC<Props> = ({ data, setData, nextStep, prevStep }) => {
     if (!data.code) return;
     
     setIsVerifying(true);
-    // Simular verificación
     setTimeout(() => {
       if (data.code === "789542") {
         setIsVerified(true);

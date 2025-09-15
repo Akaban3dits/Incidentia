@@ -5,15 +5,14 @@ import {
   DB_USER,
   DB_PASSWORD,
   DB_NAME,
-} from "./env"; // Importa las variables de entorno ya validadas
+} from "./env"; 
 
-// Crea una instancia de Sequelize configurada para conectarse a PostgreSQL
 export const sequelize = new Sequelize({
-  dialect: "postgres",       // Especifica el motor de base de datos
-  host: DB_HOST,             // Dirección del servidor
-  port: DB_PORT,             // Puerto de conexión
-  username: DB_USER,         // Usuario de la base de datos
-  password: DB_PASSWORD,     // Contraseña
-  database: DB_NAME,         // Nombre de la base de datos
-  logging: false,            // Desactiva logs SQL en consola
+  dialect: "postgres",       
+  host: DB_HOST,             
+  port: DB_PORT,             
+  username: DB_USER,         
+  password: DB_PASSWORD,     
+  database: DB_NAME,         
+  logging: false,            
 });

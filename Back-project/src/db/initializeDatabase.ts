@@ -1,4 +1,3 @@
-// src/db/initializeDatabase.ts
 import { ensureDatabaseExists } from "./createDatabase";
 import { sequelize } from "../config/sequelize";
 import models from "../models";
