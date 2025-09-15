@@ -14,7 +14,6 @@ const StepConfirmation: FC<Props> = ({ data, prevStep }) => {
   const submit = async () => {
     setIsSubmitting(true);
     
-    // Simular envío
     setTimeout(() => {
       console.log("✅ Enviado:", data);
       setIsSubmitting(false);

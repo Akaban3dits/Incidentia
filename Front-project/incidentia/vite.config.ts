@@ -4,6 +4,10 @@ import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
   plugins: [react(), tailwindcss(),],server: {
-    allowedHosts: ['clicking-byte-adverse-academic.trycloudflare.com'],
-  },
+    allowedHosts: [
+      "35db34a59967.ngrok-free.app" 
+    ],
+    host: true, 
+    port: 5173, 
+  }
 })

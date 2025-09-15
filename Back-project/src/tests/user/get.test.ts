@@ -18,7 +18,6 @@ describe("GET /api/users/:userId", () => {
 
     const id = resCreate.body.user_id;
 
-    // obtener por ID
     const res = await withAuth(request(app).get(`/api/users/${id}`), token);
 
     expect(res.status).toBe(200);
