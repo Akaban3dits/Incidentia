@@ -45,18 +45,12 @@ async function adminsDeptYSistemas(
 
 export class TicketService {
   static async create(payload: CreateTicketInput) {
-    if (payload.status === TicketStatus.Cerrado) {
-      throw new BadRequestError(
-        "No se permite crear un ticket con estado Cerrado."
-      );
-    }
-
     try {
       const row = await Ticket.create({
         titulo: payload.titulo,
         description: payload.description,
-        status: payload.status,
-        priority: payload.priority ?? null,
+        status: payload.status ?? TicketStatus.Abierto,
+        priority: payload.priority ?? TicketPriority.Media,
         device_id: payload.device_id ?? null,
         assigned_user_id: payload.assigned_user_id ?? null,
         department_id: payload.department_id,
@@ -65,6 +59,12 @@ export class TicketService {
         created_by_id: payload.created_by_id ?? null,
         created_by_name: payload.created_by_name ?? null,
         created_by_email: payload.created_by_email ?? null,
+      });
+
+      console.log("[tickets:svc.create] creado", {
+        ticket_id: row.ticket_id,
+        status: row.status,
+        priority: row.priority,
       });
 
       await NotificationService.notifyToDeptByName(
@@ -79,6 +79,7 @@ export class TicketService {
 
       if (!row.assigned_user_id) {
         const recipients = await adminsDeptYSistemas(row.department_id, null);
+        console.log("[tickets:svc.create] sin encargado → recipients", recipients.length);
         if (recipients.length) {
           await NotificationService.createAndFanout({
             type: NotificationType.Advertencia,
@@ -89,10 +90,16 @@ export class TicketService {
         }
       }
 
-      return await Ticket.scope(["withBasics"]).findByPk(row.ticket_id);
+      const result = await Ticket.scope(["withBasics"]).findByPk(row.ticket_id);
+      console.log("[tickets:svc.create] return withBasics", {
+        id: (result as any)?.id ?? (result as any)?.ticket_id,
+      });
+      return result;
     } catch (error: any) {
+      // Logs compactos de FK/errores comunes
       if (error?.name === "SequelizeForeignKeyConstraintError") {
         const col = error?.fields ? Object.keys(error.fields)[0] : undefined;
+        console.warn("[tickets:svc.create] FK error en columna:", col);
         if (col === "device_id")
           throw new BadRequestError("FK inválida: device_id no existe.");
         if (col === "assigned_user_id")
@@ -103,6 +110,7 @@ export class TicketService {
           throw new BadRequestError("FK inválida: parent_ticket_id no existe.");
         throw new BadRequestError("FK inválida en el ticket.");
       }
+      console.error("[tickets:svc.create] error", error?.name, error?.message);
       throw new InternalServerError("Error al crear el ticket.");
     }
   }
