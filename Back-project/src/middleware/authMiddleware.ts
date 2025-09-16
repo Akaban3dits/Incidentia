@@ -3,7 +3,7 @@ import jwt, { JwtPayload } from "jsonwebtoken";
 import { UnauthorizedError, ForbiddenError } from "../utils/error";
 
 export interface JwtUserPayload extends JwtPayload {
-  user_id?: string; // puede no venir; mapeamos abajo
+  user_id?: string; 
   email?: string;
   name?: string;
   role?: string;
@@ -11,8 +11,6 @@ export interface JwtUserPayload extends JwtPayload {
 
 declare global {
   namespace Express {
-    // Extend the existing user property type to include JwtUserPayload
-    // This makes Request['user'] compatible with both JwtUserPayload and the default User type
     interface User extends JwtUserPayload {}
   }
 }
@@ -47,7 +45,6 @@ export const authMiddleware = (req: Request, _res: Response, next: NextFunction)
 
   try {
     const decoded = jwt.verify(token, secret, getVerifyOptions()) as JwtUserPayload & { sub?: string; id?: string };
-    // Mapeo robusto a user_id
     const user_id = decoded.user_id ?? decoded.id ?? decoded.sub;
     if (!user_id) return next(new UnauthorizedError("Token sin user_id/sub."));
     req.user = { ...decoded, user_id };

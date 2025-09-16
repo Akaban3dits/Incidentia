@@ -69,7 +69,6 @@ export function TicketsDashboard() {
   const [selectedTicket, setSelectedTicket] = useState<string | null>(null);
 
   useEffect(() => {
-    // Puedes pasar params: { search, limit, offset, sort, order }
     void dispatch(fetchTicketsThunk({ sort: "createdAt", order: "ASC" }));
   }, [dispatch]);
 

@@ -96,7 +96,6 @@ export class TicketService {
       });
       return result;
     } catch (error: any) {
-      // Logs compactos de FK/errores comunes
       if (error?.name === "SequelizeForeignKeyConstraintError") {
         const col = error?.fields ? Object.keys(error.fields)[0] : undefined;
         console.warn("[tickets:svc.create] FK error en columna:", col);
