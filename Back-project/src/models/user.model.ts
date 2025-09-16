@@ -52,6 +52,7 @@ class User
 
   public readonly createdAt!: Date;
   public readonly updatedAt!: Date;
+  name: any;
 
   public static associate(models: { [key: string]: ModelStatic<Model> }): void {
     User.belongsTo(models.Department, {

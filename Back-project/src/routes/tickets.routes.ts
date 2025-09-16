@@ -46,6 +46,7 @@ const router = Router();
  */
 router.post(
   "/",
+  
   authMiddleware,
   ticketCreateValidator,
   validationResultMiddleware,

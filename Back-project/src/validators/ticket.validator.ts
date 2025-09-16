@@ -24,6 +24,7 @@ export const ticketCreateValidator = [
     .withMessage("La descripción es obligatoria."),
 
   body("status")
+    .optional({ nullable: true })
     .notEmpty()
     .isIn(Object.values(TicketStatus))
     .withMessage("Estado inválido."),
@@ -154,9 +155,7 @@ export const ticketListValidator = [
 
   query("order")
     .optional({ nullable: true })
-    .customSanitizer((v) =>
-      typeof v === "string" ? v.toUpperCase() : v
-    )
+    .customSanitizer((v) => (typeof v === "string" ? v.toUpperCase() : v))
     .isIn(ALLOWED_ORDER as unknown as string[])
     .withMessage("order debe ser ASC o DESC."),
 ];

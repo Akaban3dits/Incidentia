@@ -1,3 +1,6 @@
+import { Provider } from "react-redux";
+import { store } from "./store/store"; 
+
 import {
   BrowserRouter as Router,
   Routes,
@@ -16,34 +19,36 @@ import CompleteProfile from "./features/auth/pages/CompleteProfile";
 
 export default function App() {
   return (
-    <ThemeProvider defaultTheme="system" storageKey="incidentia-theme">
-      <Router>
-        <Routes>
-          {/* Public auth pages */}
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/complete-profile" element={<CompleteProfile />} />
+    <Provider store={store}>
+      <ThemeProvider defaultTheme="system" storageKey="incidentia-theme">
+        <Router>
+          <Routes>
+            {/* Public auth pages */}
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/complete-profile" element={<CompleteProfile />} />
 
-          {/* Protected dashboard */}
-          <Route
-            path="/dashboard"
-            element={
-              <div className="flex h-screen">
-                <Sidebar />
-                <div className="flex flex-1 flex-col">
-                  <Navbar />
-                  <main className="flex-1 overflow-auto p-6">
-                    <TicketsDashboard />
-                  </main>
+            {/* Protected dashboard */}
+            <Route
+              path="/dashboard"
+              element={
+                <div className="flex h-screen">
+                  <Sidebar />
+                  <div className="flex flex-1 flex-col">
+                    <Navbar />
+                    <main className="flex-1 overflow-auto p-6">
+                      <TicketsDashboard />
+                    </main>
+                  </div>
                 </div>
-              </div>
-            }
-          />
+              }
+            />
 
-          {/* Catch-all → redirect to login */}
-          <Route path="*" element={<Navigate to="/login" replace />} />
-        </Routes>
-      </Router>
-    </ThemeProvider>
+            {/* Catch-all → redirect to login */}
+            <Route path="*" element={<Navigate to="/login" replace />} />
+          </Routes>
+        </Router>
+      </ThemeProvider>
+    </Provider>
   );
 }
